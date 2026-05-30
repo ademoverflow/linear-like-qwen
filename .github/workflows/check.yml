@@ -1,0 +1,71 @@
+name: Code Quality
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  python:
+    name: Python Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: '0.9.22'
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Check formatting
+        run: make check-format
+
+      - name: Check linting
+        run: make check-lint
+
+      - name: Check import sorting
+        run: make check-sort
+
+      - name: Type check
+        run: make type-check
+
+  webapp:
+    name: Webapp Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+          version: 10.23.0
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check webapp (lint + format)
+        run: make check-webapp
+
+      - name: Run webapp tests
+        run: make test-webapp

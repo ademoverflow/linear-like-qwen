@@ -1,0 +1,13 @@
+{
+	"recommendations": [
+		"ms-python.python",
+		"ms-python.debugpy",
+		"charliermarsh.ruff",
+		"ms-python.mypy-type-checker",
+		"ms-azuretools.vscode-docker",
+		"njpwerner.autodocstring",
+		"ms-toolsai.jupyter",
+		"tamasfe.even-better-toml",
+		"expo.vscode-expo-tools"
+	]
+}

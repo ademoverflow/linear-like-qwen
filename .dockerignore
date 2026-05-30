@@ -1,0 +1,8 @@
+node_modules
+.venv
+.claude
+.github
+.ruff_cache
+.mypy_cache
+.vscode
+__pycache__

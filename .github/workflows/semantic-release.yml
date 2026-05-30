@@ -1,0 +1,118 @@
+name: Semantic Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no changes will be made)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: '0.9.22'
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system python-semantic-release
+
+      - name: Setup Node.js for commitlint
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate commits (BLOCKING)
+        run: |
+          npm install -g @commitlint/cli@19 @commitlint/config-conventional@19
+          # Get the last tag, or the first commit if no tags exist
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          echo "Validating commits from $LAST_TAG to HEAD"
+          npx commitlint --from="$LAST_TAG" --to=HEAD --verbose
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Semantic Release (Dry Run)
+        if: ${{ inputs.dry_run == true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Running in dry-run mode..."
+          semantic-release version --no-commit --no-tag --no-push
+          echo "Dry run completed. No changes were made."
+
+      - name: Run Semantic Release
+        if: ${{ inputs.dry_run == false }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release version
+          semantic-release publish
+
+      - uses: pnpm/action-setup@v4
+        if: always()
+        name: Install pnpm
+        with:
+          run_install: false
+          version: 10.23.0
+
+      - name: Update pnpm workspace package version
+        if: ${{ inputs.dry_run == false }}
+        run: bash scripts/update-package-version.sh
+
+      - name: Sync UV lock file
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          uv sync --all-packages
+          if [[ -n $(git status --porcelain uv.lock) ]]; then
+            git add uv.lock
+            git commit -m "chore: update uv.lock after version bump"
+            git push origin main
+          else
+            echo "No changes to uv.lock"
+          fi
+
+      - name: Force-push main to release branch
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          git fetch origin main
+          git push origin main:release --force
+          echo "Successfully force-pushed main to release branch"
+
+      - name: Display release information
+        if: always()
+        run: |
+          echo "=== Release Information ==="
+          echo "Latest tag: $(git describe --tags --abbrev=0 2>/dev/null || echo 'No tags yet')"
+          echo ""
+          echo "Version in root pyproject.toml:"
+          grep "version = " pyproject.toml | head -1
+          echo ""
+          echo "Version in core/pyproject.toml:"
+          grep "version = " core/pyproject.toml | head -1
+          echo ""
