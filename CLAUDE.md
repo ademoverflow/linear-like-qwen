@@ -228,9 +228,9 @@ make logs-db        # Tail database logs
 ### Ports
 | Service | Port |
 |---------|------|
-| Adminer | 8997 |
-| Webapp  | 8998 |
-| Core API| 8999 |
+| Adminer | 11007 |
+| Webapp  | 11008 |
+| Core API| 11009 |
 
 ### Database Migrations
 Migrations auto-run on startup via FastAPI lifespan. Manual commands:

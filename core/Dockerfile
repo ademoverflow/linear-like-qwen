@@ -36,7 +36,7 @@ COPY core /app/core
 FROM base AS dev
 
 # Install dependencies INCLUDING dev dependencies for development tools (from root)
-RUN uv sync --frozen --group dev --package core --package ademoverflow-template
+RUN uv sync --frozen --group dev --package core --package linear-like-qwen
 
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"

@@ -11,12 +11,12 @@ services:
   adminer:
     image: adminer:latest
     ports:
-      - "8997:8080"
+      - "11007:8080"
     depends_on:
       - db
 
   core:
-    image: ademoverflow-template-core:dev
+    image: linear-like-qwen-core:dev
     build:
       context: .
       dockerfile: core/Dockerfile
@@ -25,7 +25,7 @@ services:
         USER_ID: ${USER_ID}
         USER_GID: ${USER_GID}
     ports:
-      - "8999:80"
+      - "11009:80"
     env_file:
       - .env
     volumes:
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   webapp:
-    image: ademoverflow-template-webapp:dev
+    image: linear-like-qwen-webapp:dev
     build:
       context: .
       dockerfile: webapp/Dockerfile
@@ -44,7 +44,7 @@ services:
         USER_ID: ${USER_ID}
         USER_GID: ${USER_GID}
     ports:
-      - "8998:3000"
+      - "11008:3000"
     volumes:
       - ./webapp:/app/webapp
       - /app/node_modules

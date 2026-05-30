@@ -90,7 +90,7 @@ Server runs on `http://0.0.0.0:80` by default (configured via `CORE_SERVER_HOST`
 docker compose up core
 ```
 
-Accessible at `http://localhost:8999`.
+Accessible at `http://localhost:11009`.
 
 ## Environment Variables
 

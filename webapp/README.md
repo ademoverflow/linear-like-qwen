@@ -68,7 +68,7 @@ Dev server runs at `http://localhost:3000`.
 docker compose up webapp
 ```
 
-Accessible at `http://localhost:8998`.
+Accessible at `http://localhost:11008`.
 
 ## Scripts
 

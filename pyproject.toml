@@ -1,6 +1,6 @@
 [project]
 dependencies = []
-name = "ademoverflow-template"
+name = "linear-like-qwen"
 readme = "README.md"
 requires-python = ">=3.13"
 version = "0.0.0"
