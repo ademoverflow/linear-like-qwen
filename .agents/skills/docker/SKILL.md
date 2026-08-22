@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 Manage Docker Compose services for the project.
 
-Parse `$ARGUMENTS` and run the corresponding command:
+Take the argument given in the user's message (e.g. `$docker up`) and run the corresponding command:
 
 | Argument | Command | Description |
 |----------|---------|-------------|
@@ -29,4 +29,4 @@ If no argument is provided, run `make ps` to show current status.
 
 - `rebuild` does `--no-cache` build then `up -d` — only use when `build` is insufficient.
 - Services: db (PostgreSQL), core (FastAPI), webapp (React), adminer (DB GUI).
-- Ports: core=8999, webapp=8998, adminer=8997.
+- Ports (see `compose.yaml`): core=11009, webapp=11008, adminer=11007.

@@ -6,7 +6,7 @@ argument-hint: "<route-path> [page-name]"
 
 Scaffold a new frontend route for the project.
 
-Parse `$ARGUMENTS`:
+Take the argument given in the user's message (e.g. `$new-route /teams/$teamId TeamPage`):
 - First arg: route path like `/settings` or `/events/$eventId` (required)
 - Second arg: optional page component name (defaults to deriving from the path)
 

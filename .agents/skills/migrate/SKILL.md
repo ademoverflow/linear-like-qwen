@@ -8,8 +8,8 @@ Guide through the full Alembic migration workflow for the project.
 
 ## Process
 
-1. **Create migration**: Run `make db-migrate MSG="$ARGUMENTS"` to auto-generate a migration from model changes.
-   - If `$ARGUMENTS` is empty, ask the user for a migration description.
+1. **Create migration**: The migration description is the argument given in the user's message (e.g. `$migrate add teams table`). Run `make db-migrate MSG="<description>"` to auto-generate a migration from model changes.
+   - If no description was given, ask the user for one.
 
 2. **Review the migration**: Read the newly created file in `core/src/core/alembic/versions/` (the most recently modified `.py` file). Check for:
    - Correctness: Does `upgrade()` match the intended model changes?

@@ -6,7 +6,7 @@ argument-hint: "[core|webapp|db]"
 
 View logs for Docker services.
 
-Parse `$ARGUMENTS`:
+Take the argument given in the user's message (e.g. `$logs core`):
 
 | Argument | Service |
 |----------|---------|
