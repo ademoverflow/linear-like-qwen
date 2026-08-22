@@ -89,6 +89,7 @@ Configure in `src/env.ts` using T3 Env with Zod validation.
 | Variable | Prefix | Description |
 |----------|--------|-------------|
 | `VITE_APP_TITLE` | `VITE_` | Application title (client-side) |
+| `VITE_API_URL` | `VITE_` | Core API base URL, e.g. `http://192.168.1.10:11009` (required; see `webapp/.env.example`) |
 | `SERVER_URL` | None | Backend API URL (server-side) |
 
 Usage:

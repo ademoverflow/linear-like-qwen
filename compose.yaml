@@ -48,6 +48,8 @@ services:
     volumes:
       - ./webapp:/app/webapp
       - /app/node_modules
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
     depends_on:

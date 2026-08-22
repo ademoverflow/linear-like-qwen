@@ -119,21 +119,9 @@ docker compose up
 
 ## Development
 
-### Running Locally (without Docker)
-
-**Backend:**
-```bash
-cd core
-uv sync
-uv run python -m core
-```
-
-**Frontend:**
-```bash
-cd webapp
-pnpm install
-pnpm dev
-```
+The development stack is Docker Compose (see Quick Start above). There is no
+supported without-Docker flow: the app resolves `.env` and its Alembic config
+relative to the repository root.
 
 ### Code Quality
 

@@ -211,8 +211,10 @@ ip: ## Show local IP address and service URLs
 	echo "  Webapp:  http://$$IP:11008" && \
 	echo "  Adminer: http://$$IP:11007/?pgsql=db&username=admin&db=db&ns=public"
 
-update-ip: ## Update .env with current local network IP
+update-ip: ## Update .env and webapp/.env with the current local network IP
 	@IP=$$(ipconfig getifaddr $$(route -n get default 2>/dev/null | awk '/interface:/ {print $$2}')) && \
-	sed -i '' "s|^WEBAPP_URL=.*|WEBAPP_URL=http://$$IP:8998|" .env && \
+	sed -i '' "s|^WEBAPP_URL=.*|WEBAPP_URL=http://$$IP:11008|" .env && \
 	sed -i '' "s|^COOKIE_DOMAIN=.*|COOKIE_DOMAIN=$$IP|" .env && \
-	echo "Updated .env with IP: $$IP"
+	grep -q '^VITE_API_URL=' .env && sed -i '' "s|^VITE_API_URL=.*|VITE_API_URL=http://$$IP:11009|" .env || printf 'VITE_API_URL=http://%s:11009\n' "$$IP" >> .env && \
+	printf 'VITE_API_URL=http://%s:11009\n' "$$IP" > webapp/.env && \
+	echo "Updated .env and webapp/.env with IP: $$IP"

@@ -71,26 +71,17 @@ core/
 
 ## Development
 
-### Running Locally
+Docker Compose is the only supported way to run the API in development. The app
+resolves `.env` and its Alembic config relative to the repository root, so running
+it from `core/` directly will not work.
 
 ```bash
-# Install dependencies
-uv sync
-
-# Start server
-uv run python -m core
+# From the repository root
+make up          # start db, core, webapp
+make logs-core   # tail API logs
 ```
 
-Server runs on `http://0.0.0.0:80` by default (configured via `CORE_SERVER_HOST` and `CORE_SERVER_PORT`).
-
-### With Docker
-
-```bash
-# From repository root
-docker compose up core
-```
-
-Accessible at `http://localhost:11009`.
+Accessible at `http://localhost:11009` (Swagger UI at `/docs`).
 
 ## Environment Variables
 
