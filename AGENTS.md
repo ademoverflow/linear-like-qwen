@@ -1,6 +1,11 @@
-# CLAUDE.md - AI Assistant Guide
+# AGENTS.md
 
-This document provides essential context for AI assistants working with this codebase.
+Always-on instructions for any coding agent (Codex, OpenCode, Claude Code — `CLAUDE.md` imports this file). Keep it short; long-form material lives behind the pointers below.
+
+**Before any task**, read once per session:
+- `PROMPT-linear-like.md` — the project brief (what we are building, domain rules, working protocol)
+- `CONTEXT.md` — domain glossary; use its vocabulary everywhere (Issue, Team, Workflow State… never ticket/task/card)
+- `docs/adr/` — decisions already made; respect them or write a new ADR
 
 ## Project Overview
 
@@ -10,7 +15,16 @@ Full-stack monorepo with:
 - **Database**: PostgreSQL 17
 - **Containerization**: Docker Compose
 
-All development commands are available via `make`. Run `make help` to see all targets.
+All development commands are available via `make`. Run `make help` to see all targets. Always prefer `make <target>` over raw `uv`/`pnpm`/`docker` invocations.
+
+## Architecture rules (see brief §8)
+
+- `core/src/core/domain/` is pure Python: **no imports from `sqlmodel`, `sqlalchemy`, `fastapi` or `core.database`**. Workflow transitions, authorization (`can()`), identifiers and validation live here and are unit-tested without a database.
+- `core/src/core/services/` holds transactional use-cases. Routers are thin: parse, auth dependency, call a service, return a schema. Activity rows are written by services only.
+- API routes are mounted under `/api/v1` (health stays at `/health`).
+- No new top-level packages; the monorepo stays `core/` + `webapp/`.
+- Ask before adding a dependency to `core/pyproject.toml` or `webapp/package.json`.
+- Never `git reset --hard`, `git push --force`, delete branches, or drop the `db` volume.
 
 ## Code Quality Standards
 
@@ -58,6 +72,8 @@ Conventional commits enforced via commitlint. Format: `type(scope): description`
 
 Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`, `wip`
 
+One commit per ticket; body references the `.scratch/` ticket path. Reserve `wip(...)` for handoff commits.
+
 ## Project Structure
 
 ```
@@ -68,7 +84,9 @@ Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`
 │   │   ├── main.py         # FastAPI app setup
 │   │   ├── settings.py     # Pydantic settings
 │   │   ├── database.py     # Async SQLAlchemy setup
-│   │   ├── routers/        # API route handlers
+│   │   ├── routers/        # Thin API route handlers
+│   │   ├── services/       # Transactional use-cases (routers call these)
+│   │   ├── domain/         # Pure domain rules, no I/O (workflow, authz, identifiers)
 │   │   ├── models/         # SQLModel data models
 │   │   ├── security/       # JWT + password hashing
 │   │   ├── middlewares/    # Auth middleware
@@ -82,10 +100,13 @@ Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`
 │       ├── pages/          # Page components
 │       └── integrations/   # Library integrations
 ├── scripts/                 # Development utilities
-├── .claude/skills/          # Claude Code slash commands
+├── .agents/skills/          # All agent skills (Claude Code reads them via the .claude/skills symlink)
+├── .scratch/                # Local-markdown issue tracker (specs and tickets)
+├── docs/adr/                # Architecture decision records
+├── CONTEXT.md               # Domain glossary
+├── PROMPT-linear-like.md    # Project brief
 ├── Makefile                 # Development command runner
-├── compose.yaml            # Docker orchestration
-└── bootstrap.sh            # Project initialization
+└── compose.yaml            # Docker orchestration
 ```
 
 ## Design Patterns
@@ -258,9 +279,9 @@ make ip             # Show local IP and service URLs
 make update-ip      # Update .env with current local IP
 ```
 
-## Claude Code Skills
+## Project skills
 
-Available via `/skill-name` in Claude Code:
+Invoke with `$name` in Codex, `/name` in Claude Code and OpenCode. These cover repo mechanics; the engineering-process skills (`grill-with-docs`, `to-spec`, `to-tickets`, `implement`, `tdd`, `code-review`, `diagnosing-bugs`, `handoff`…) are listed in the `## Agent skills` section below and drive the working protocol in the brief.
 
 | Skill | Description |
 |-------|-------------|
@@ -290,4 +311,4 @@ Available via `/skill-name` in Claude Code:
 | Docker setup | `compose.yaml` |
 | Python config | `pyproject.toml` |
 | JS config | `biome.json` |
-| Skills | `.claude/skills/` |
+| Skills | `.agents/skills/` |
