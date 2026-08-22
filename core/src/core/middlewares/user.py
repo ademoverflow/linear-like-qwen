@@ -1,5 +1,6 @@
 """User middlewares."""
 
+import uuid
 from typing import Annotated
 
 import jwt
@@ -58,9 +59,13 @@ async def get_current_user(
             settings.core_jwt_secret_key,
             algorithms=[settings.core_jwt_algorithm],
         )
-        email = payload.get("email")
-        if email is None:
+        subject = payload.get("sub")
+        if subject is None:
             raise credentials_exception
+        try:
+            user_id = uuid.UUID(str(subject))
+        except ValueError:
+            raise credentials_exception from None
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,8 +75,7 @@ async def get_current_user(
     except jwt.InvalidTokenError:
         raise credentials_exception from None
 
-    # Get user by email
-    statement = select(User).where(User.email == email).limit(1)
+    statement = select(User).where(User.id == user_id).limit(1)
     result = await session.execute(statement)
 
     user = result.scalar_one_or_none()

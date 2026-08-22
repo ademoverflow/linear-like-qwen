@@ -27,9 +27,10 @@ select = ["ALL"]
 
 [tool.ruff.lint.extend-per-file-ignores]
 "notebooks/**/*.ipynb" = ["ALL"]
-"tests/**/*.py" = [
+"**/tests/**/*.py" = [
     "INP001", # Ignore __init__.py files in tests
     "S101",   # Allow assert statements in tests
+    "PLR2004", # Magic numbers (status codes) are fine in tests
 ]
 
 [tool.ruff]
@@ -41,6 +42,9 @@ line-length = 100
 indent-style = "space"
 line-ending = "auto"
 quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 disallow_untyped_defs = true

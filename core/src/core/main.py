@@ -3,14 +3,18 @@ from contextlib import asynccontextmanager
 
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from core import __version__
+from core.domain.errors import DomainError
 from core.routers import health_router
 from core.settings import get_settings
 
 settings = get_settings()
+
+API_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
@@ -44,4 +48,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(DomainError)
+async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
+    """Map DomainError subclasses to the API error envelope."""
+    return JSONResponse(status_code=exc.status_code, content=exc.to_payload())
+
+
+# Health stays unversioned so load balancers and compose healthchecks keep working.
 app.include_router(health_router)
+
+# Every resource router is mounted here. Add: api_router.include_router(<name>_router)
+api_router = APIRouter(prefix=API_PREFIX)
+app.include_router(api_router)

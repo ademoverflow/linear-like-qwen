@@ -23,7 +23,6 @@ function renderWithRouter() {
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
 
-	// @ts-expect-error -- router type mismatch in test context
 	render(<RouterProvider router={router} />);
 }
 
