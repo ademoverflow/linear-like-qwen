@@ -127,9 +127,8 @@ relative to the repository root.
 
 **Python:**
 ```bash
-poe check_format    # Check formatting
-poe check_lint      # Check linting
-poe type_check      # Run mypy
+make check-python   # Format, lint, import order and type check
+make fix            # Auto-fix formatting and import order
 ```
 
 **TypeScript:**
@@ -156,11 +155,8 @@ cd webapp && pnpm test
 Migrations auto-run on app startup. For manual control:
 
 ```bash
-# Generate migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
+make db-migrate MSG="description"  # Generate migration
+make db-upgrade                    # Apply migrations
 ```
 
 ## Environment Variables

@@ -113,13 +113,13 @@ Migrations auto-run on application startup. Manual commands:
 
 ```bash
 # Generate a new migration
-alembic revision --autogenerate -m "Add users table"
+make db-migrate MSG="Add users table"
 
 # Apply all migrations
-alembic upgrade head
+make db-upgrade
 
 # Rollback one migration
-alembic downgrade -1
+make db-downgrade
 ```
 
 ### Models
@@ -211,16 +211,16 @@ def test_health() -> None:
 
 ```bash
 # Format code
-poe fix_format
+make fix-format
 
 # Check linting
-poe check_lint
+make check-lint
 
 # Type check
-poe type_check
+make type-check
 
-# All checks
-./scripts/code-quality-checkers.sh
+# All checks (Python + webapp)
+make check
 ```
 
 ## Docker

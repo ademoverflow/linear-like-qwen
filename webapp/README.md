@@ -33,8 +33,6 @@ webapp/
 │   ├── integrations/         # Library integrations
 │   │   └── tanstack-query/
 │   │       └── root-provider.tsx
-│   │
-│   └── routes/               # (For file-based routing)
 │
 ├── public/                   # Static assets
 │   └── favicon.ico

@@ -7,7 +7,7 @@
 		"webapp"
 	],
 	"scripts": {
-		"clean": "pnpm -r --parallel run clean && rm -rf node_modules"
+		"clean": "rm -rf node_modules"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.4"
