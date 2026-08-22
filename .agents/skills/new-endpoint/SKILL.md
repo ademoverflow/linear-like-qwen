@@ -6,7 +6,7 @@ argument-hint: "<entity-name>"
 
 Scaffold a complete new API endpoint for the project following established patterns.
 
-The entity name is: `$ARGUMENTS`
+The entity name is the argument given in the user's message (e.g. `$new-endpoint team`).
 
 If no argument is provided, ask the user for the entity name and what fields it should have.
 
@@ -31,6 +31,8 @@ Create `core/src/core/routers/<entity_snake_case>.py` following the pattern in `
 - Use `Annotated[AsyncSession, Depends(get_session)]` for database sessions
 - Use `Annotated[User, Depends(get_current_user)]` for authenticated endpoints
 - All handlers must be `async`
+- Keep the router thin: validation + auth dependency + a call into `core/src/core/services/<entity>.py`. Business rules (workflow transitions, authorization via `can()`) live in `core/src/core/domain/`, which must not import sqlmodel/sqlalchemy/fastapi.
+- Mount under the `/api/v1` prefix (see `main.py`)
 
 ### 3. Register the router
 

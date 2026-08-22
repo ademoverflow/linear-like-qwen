@@ -9,7 +9,7 @@ Auto-fix all linting and formatting issues in the project.
 
 ## Scope
 
-If `$ARGUMENTS` is provided, fix only that target:
+If the argument given in the user's message names a target, fix only that target:
 - `python` → Python fixes only
 - `webapp` → Webapp fixes only
 

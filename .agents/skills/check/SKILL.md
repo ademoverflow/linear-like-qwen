@@ -9,7 +9,7 @@ Run code quality checks for the project. All commands run from the project root.
 
 ## Scope
 
-If `$ARGUMENTS` is provided, run checks only for that target:
+If the argument given in the user's message names a target, run checks only for that target:
 - `python` → `make check-python`
 - `webapp` → `make check-webapp`
 

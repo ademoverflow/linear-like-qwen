@@ -8,7 +8,7 @@ Run tests for the project.
 
 ## Scope
 
-Parse `$ARGUMENTS` to determine what to test:
+Use the argument given in the user's message (e.g. `$test core`) to determine what to test:
 
 - No arguments → run all tests: `make test-core`, `make test-webapp`
 - `core` → `make test-core` (pytest in Docker container)

@@ -6,7 +6,7 @@ argument-hint: "<ComponentName>"
 
 Scaffold a new React component for the project.
 
-Parse `$ARGUMENTS`: PascalCase component name (required).
+The PascalCase component name is the argument given in the user's message (e.g. `$new-component IssueRow`).
 
 If no argument is provided, ask the user for the component name.
 
