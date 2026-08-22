@@ -209,7 +209,7 @@ ip: ## Show local IP address and service URLs
 	echo "Service URLs:" && \
 	echo "  API:     http://$$IP:11009" && \
 	echo "  Webapp:  http://$$IP:11008" && \
-	echo "  Adminer: http://$$IP:11007"
+	echo "  Adminer: http://$$IP:11007/?pgsql=db&username=admin&db=db&ns=public"
 
 update-ip: ## Update .env with current local network IP
 	@IP=$$(ipconfig getifaddr $$(route -n get default 2>/dev/null | awk '/interface:/ {print $$2}')) && \
