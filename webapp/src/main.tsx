@@ -12,6 +12,7 @@ import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provi
 import "./styles.css";
 
 import App from "./App.tsx";
+import IssueViewsPrototype from "./pages/__prototype__/issue-views.tsx";
 import About from "./pages/About.tsx";
 
 const rootRoute = createRootRoute({
@@ -34,7 +35,22 @@ const aboutRoute = createRoute({
 	component: About,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, aboutRoute]);
+// Throwaway Phase-1 prototype (issue list density + board card anatomy).
+// Delete this route and webapp/src/pages/__prototype__ once the design is folded in.
+const prototypeIssueViewsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/prototype/issue-views",
+	component: IssueViewsPrototype,
+	validateSearch: (search: Record<string, unknown>) => ({
+		variant: (search.variant as string | undefined) ?? "a",
+	}),
+});
+
+const routeTree = rootRoute.addChildren([
+	indexRoute,
+	aboutRoute,
+	prototypeIssueViewsRoute,
+]);
 
 const TanStackQueryProviderContext = TanStackQueryProvider.getContext();
 const router = createRouter({
