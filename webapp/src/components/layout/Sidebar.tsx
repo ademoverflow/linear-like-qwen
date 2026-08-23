@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
-import { LogOut, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import {
+	LogOut,
+	PanelLeftClose,
+	PanelLeftOpen,
+	Plus,
+	Shield,
+} from "lucide-react";
 import { useState } from "react";
 import { logout, queryKeys } from "@/api/auth";
 import { listTeams } from "@/api/teams";
@@ -118,6 +124,19 @@ export function Sidebar() {
 			</nav>
 
 			<div className="border-t border-neutral-200 p-2 dark:border-neutral-800">
+				{me?.is_admin && (
+					<Link
+						to="/admin"
+						title="Admin"
+						className={
+							"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 " +
+							(collapsed ? "justify-center" : "")
+						}
+					>
+						<Shield size={16} className="shrink-0" />
+						{!collapsed && <span>Admin</span>}
+					</Link>
+				)}
 				{me?.is_admin && (
 					<button
 						type="button"

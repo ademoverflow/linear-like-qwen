@@ -25,6 +25,13 @@ class Action(StrEnum):
     TEAM_VIEW = "team.view"
     ISSUE_CREATE = "issue.create"
     ISSUE_VIEW = "issue.view"
+    INVITATION_CREATE = "invitation.create"
+    INVITATION_LIST = "invitation.list"
+    USER_LIST = "user.list"
+    USER_DEACTIVATE = "user.deactivate"
+    USER_REACTIVATE = "user.reactivate"
+    USER_PROMOTE = "user.promote"
+    USER_DEMOTE = "user.demote"
 
 
 @dataclass(frozen=True)

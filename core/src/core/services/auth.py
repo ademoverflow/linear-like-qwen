@@ -10,13 +10,21 @@ from datetime import timedelta
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.domain.errors import AuthenticationError, ForbiddenError, RateLimitError, ValidationError
+from core.domain.errors import (
+    AuthenticationError,
+    ConflictError,
+    ForbiddenError,
+    RateLimitError,
+    ValidationError,
+)
+from core.domain.invitations import invitation_state
 from core.models.membership import Membership
 from core.models.team import Team
 from core.models.user import User
 from core.models.workspace import Workspace
 from core.security.password import hash_password, verify_password
 from core.security.token import create_access_token_for_user
+from core.services.invitations import find_invitation_for_token, utcnow
 
 # In-process login rate limit: 10 attempts / 15 min, per email and per client
 # IP (ADR 0009). Not distributed: acceptable while v1 runs one core container.
@@ -67,7 +75,11 @@ class SlidingWindowLimiter:
 
 
 MSG_REGISTRATION_CLOSED = "Registration is closed. A workspace admin must invite you first."
-MSG_INVITATIONS_NOT_ENABLED = "Registration is closed. Invitations are not available yet."
+MSG_INVITATION_INVALID = "Invalid invitation token. Ask a workspace admin for a new one."
+MSG_INVITATION_USED = "This invitation has already been used. Ask a workspace admin for a new one."
+MSG_INVITATION_EXPIRED = "This invitation has expired. Ask a workspace admin for a new one."
+MSG_INVITATION_EMAIL_MISMATCH = "This invitation was sent to a different email address."
+MSG_EMAIL_TAKEN = "A user with this email already exists"
 MSG_INVALID_CREDENTIALS = "Invalid email or password"
 MSG_DEACTIVATED = "User account is deactivated"
 MSG_RATE_LIMITED = "Too many login attempts. Please try again in a few minutes."
@@ -93,42 +105,71 @@ class MembershipInfo:
 async def register(
     session: AsyncSession, *, email: str, password: str, token: str | None = None
 ) -> User:
-    """Create an account (bootstrap or invited; brief §5.1).
+    """Create an account: bootstrap while empty, otherwise via Invitation.
 
     While the user base is empty the first registrant becomes the workspace
-    Admin. Afterwards registration is closed until Invitations exist
-    (ticket 02); the ``token`` parameter is accepted for forward
-    compatibility and is ignored for now.
+    Admin. Afterwards registration requires a valid, unexpired, unused
+    Invitation token (brief §5.1, ADR 0012); the registrant must use the
+    invited email, and accepting the Invitation marks it used.
 
     Args:
         session: The database session (the transaction is owned here).
         email: The account email.
         password: The plaintext password.
-        token: Invitation token (used from ticket 02 on).
+        token: The raw Invitation token (required once bootstrap is closed).
 
     Returns:
         The created user.
 
     Raises:
-        ValidationError: If the user base is not empty (no open
-            registration).
+        ValidationError: If registration is closed without a token, or the
+            token is invalid, used, expired or for another email.
+        ConflictError: If the invited email is already taken.
 
     """
     async with session.begin():
         user_count = (await session.exec(select(func.count()).select_from(User))).one()
-        if user_count:
-            message = MSG_REGISTRATION_CLOSED if token is None else MSG_INVITATIONS_NOT_ENABLED
-            raise ValidationError(message)
-        workspace = (await session.exec(select(Workspace).limit(1))).first()
-        if workspace is None:
-            session.add(Workspace())
+        if user_count == 0:
+            workspace = (await session.exec(select(Workspace).limit(1))).first()
+            if workspace is None:
+                session.add(Workspace())
+            user = User(
+                email=email,
+                hashed_password=hash_password(password),
+                is_admin=True,
+                display_name=email.split("@")[0],
+            )
+            session.add(user)
+            await session.flush()
+            return user
+        if token is None:
+            raise ValidationError(MSG_REGISTRATION_CLOSED)
+        invitation = await find_invitation_for_token(session, token)
+        if invitation is None:
+            raise ValidationError(MSG_INVITATION_INVALID)
+        state = invitation_state(
+            expires_at=invitation.expires_at,
+            accepted_at=invitation.accepted_at,
+            now=utcnow(),
+        )
+        if state == "used":
+            raise ValidationError(MSG_INVITATION_USED)
+        if state == "expired":
+            raise ValidationError(MSG_INVITATION_EXPIRED)
+        normalized_email = email.strip().lower()
+        if invitation.email != normalized_email:
+            raise ValidationError(MSG_INVITATION_EMAIL_MISMATCH)
+        existing = (await session.exec(select(User).where(User.email == normalized_email))).first()
+        if existing is not None:
+            raise ConflictError(MSG_EMAIL_TAKEN)
         user = User(
-            email=email,
+            email=normalized_email,
             hashed_password=hash_password(password),
-            is_admin=True,
-            display_name=email.split("@")[0],
+            is_admin=False,
+            display_name=normalized_email.split("@")[0],
         )
         session.add(user)
+        invitation.accepted_at = utcnow()
         await session.flush()
         return user
 

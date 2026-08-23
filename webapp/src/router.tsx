@@ -11,6 +11,7 @@ import { getMe, queryKeys } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { listTeams } from "@/api/teams";
 import { AppShell } from "@/components/layout/AppShell";
+import { Admin } from "@/pages/Admin";
 import { Home } from "@/pages/Home";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
@@ -116,10 +117,24 @@ function buildRouteTree() {
 		component: TeamIssues,
 	});
 
+	// Admin screen: workspace Admins only (brief §7.1, §5.3).
+	const adminRoute = createRoute({
+		getParentRoute: () => appRoute,
+		path: "/admin",
+		component: Admin,
+		beforeLoad: async ({ context }) => {
+			const me = await queryClientOf(context).ensureQueryData({
+				queryKey: queryKeys.auth.me(),
+				queryFn: getMe,
+			});
+			if (!me.is_admin) throw redirect({ to: "/" });
+		},
+	});
+
 	return rootRoute.addChildren([
 		loginRoute,
 		registerRoute,
-		appRoute.addChildren([homeRoute, teamIssuesRoute]),
+		appRoute.addChildren([homeRoute, teamIssuesRoute, adminRoute]),
 	]);
 }
 

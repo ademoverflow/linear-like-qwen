@@ -10,4 +10,8 @@ export const queryKeys = {
 	issues: {
 		team: (teamId: string) => ["issues", "team", teamId] as const,
 	},
+	admin: {
+		users: () => ["admin", "users"] as const,
+		invitations: () => ["admin", "invitations"] as const,
+	},
 };

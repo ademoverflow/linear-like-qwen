@@ -23,7 +23,7 @@ class RegisterRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    # Invitation token (used from ticket 02; accepted for forward compatibility).
+    # Invitation token (required once bootstrap is closed; ADR 0012).
     token: str | None = Field(default=None, max_length=200)
 
 

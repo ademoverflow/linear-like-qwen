@@ -9,7 +9,14 @@ from fastapi.responses import JSONResponse
 
 from core import __version__
 from core.domain.errors import DomainError
-from core.routers import auth_router, health_router, issues_router, teams_router
+from core.routers import (
+    auth_router,
+    health_router,
+    invitations_router,
+    issues_router,
+    teams_router,
+    users_router,
+)
 from core.settings import get_settings
 
 settings = get_settings()
@@ -63,4 +70,6 @@ api_router = APIRouter(prefix=API_PREFIX)
 api_router.include_router(auth_router)
 api_router.include_router(teams_router)
 api_router.include_router(issues_router)
+api_router.include_router(invitations_router)
+api_router.include_router(users_router)
 app.include_router(api_router)
