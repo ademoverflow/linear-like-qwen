@@ -202,6 +202,7 @@ function InvitationsSection({ usersById }: { usersById: Map<string, User> }) {
 	const [email, setEmail] = useState("");
 	const [newToken, setNewToken] = useState<string | null>(null);
 	const [copied, setCopied] = useState(false);
+	const [copyFailed, setCopyFailed] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 
 	const inviteMutation = useMutation({
@@ -209,6 +210,7 @@ function InvitationsSection({ usersById }: { usersById: Map<string, User> }) {
 		onSuccess: (invitation) => {
 			setNewToken(invitation.token);
 			setCopied(false);
+			setCopyFailed(false);
 			setEmail("");
 			setFormError(null);
 			queryClient.invalidateQueries({ queryKey: ["admin", "invitations"] });
@@ -219,11 +221,31 @@ function InvitationsSection({ usersById }: { usersById: Map<string, User> }) {
 
 	const copyToken = async () => {
 		if (!newToken) return;
+		setCopyFailed(false);
 		try {
 			await navigator.clipboard.writeText(newToken);
 			setCopied(true);
 		} catch {
-			// clipboard unavailable (insecure context) — the token stays visible
+			// navigator.clipboard is missing outside secure contexts (plain-HTTP
+			// dev over a local IP) — fall back to a hidden textarea + execCommand.
+			try {
+				const textarea = document.createElement("textarea");
+				textarea.value = newToken;
+				textarea.setAttribute("readonly", "");
+				textarea.style.position = "fixed";
+				textarea.style.opacity = "0";
+				document.body.appendChild(textarea);
+				textarea.select();
+				const copiedOk = document.execCommand("copy");
+				document.body.removeChild(textarea);
+				if (copiedOk) {
+					setCopied(true);
+					return;
+				}
+			} catch {
+				// execCommand also unavailable — report below
+			}
+			setCopyFailed(true);
 		}
 	};
 
@@ -285,6 +307,11 @@ function InvitationsSection({ usersById }: { usersById: Map<string, User> }) {
 							{copied ? "Copied" : "Copy"}
 						</Button>
 					</div>
+					{copyFailed && (
+						<p className="mt-2 text-xs text-red-600 dark:text-red-400">
+							Copy failed — select the token and copy manually.
+						</p>
+					)}
 				</div>
 			)}
 

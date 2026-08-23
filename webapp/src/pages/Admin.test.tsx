@@ -121,6 +121,77 @@ describe("Admin", () => {
 		expect(createInvitation).toHaveBeenCalledWith("new@example.com");
 	});
 
+	function openInvitationsAndCreate() {
+		renderAt("/admin");
+		return screen;
+	}
+
+	async function inviteViaUi(screen: typeof screen) {
+		await screen.findByRole("heading", { name: /admin/i });
+		await fireEvent.click(screen.getByRole("tab", { name: "Invitations" }));
+		const emailInput = screen.getByLabelText("Email");
+		fireEvent.change(emailInput, { target: { value: "new@example.com" } });
+		fireEvent.click(screen.getByRole("button", { name: /invite/i }));
+		await screen.findByText("fresh-token-123");
+	}
+
+	it("copies the token when the clipboard API is available", async () => {
+		setup();
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			value: { writeText },
+			configurable: true,
+		});
+		vi.mocked(createInvitation).mockResolvedValue({
+			...pendingInvitation,
+			token: "fresh-token-123",
+		});
+		await inviteViaUi(openInvitationsAndCreate());
+		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+		expect(await screen.findByText("Copied")).toBeTruthy();
+		expect(writeText).toHaveBeenCalledWith("fresh-token-123");
+	});
+
+	it("falls back to execCommand when the clipboard API is unavailable", async () => {
+		setup();
+		Object.defineProperty(navigator, "clipboard", {
+			value: undefined,
+			configurable: true,
+		});
+		const execCommand = vi.fn().mockReturnValue(true);
+		Object.defineProperty(document, "execCommand", {
+			value: execCommand,
+			configurable: true,
+		});
+		vi.mocked(createInvitation).mockResolvedValue({
+			...pendingInvitation,
+			token: "fresh-token-123",
+		});
+		await inviteViaUi(openInvitationsAndCreate());
+		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+		expect(await screen.findByText("Copied")).toBeTruthy();
+		expect(execCommand).toHaveBeenCalledWith("copy");
+	});
+
+	it("shows a hint when copying fails entirely", async () => {
+		setup();
+		Object.defineProperty(navigator, "clipboard", {
+			value: undefined,
+			configurable: true,
+		});
+		Object.defineProperty(document, "execCommand", {
+			value: vi.fn().mockReturnValue(false),
+			configurable: true,
+		});
+		vi.mocked(createInvitation).mockResolvedValue({
+			...pendingInvitation,
+			token: "fresh-token-123",
+		});
+		await inviteViaUi(openInvitationsAndCreate());
+		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+		expect(await screen.findByText(/copy failed/i)).toBeTruthy();
+	});
+
 	it("redirects non-Admins away from the admin screen", async () => {
 		vi.mocked(getMe).mockResolvedValue({ ...meFixture, is_admin: false });
 		vi.mocked(listTeams).mockResolvedValue([]);
