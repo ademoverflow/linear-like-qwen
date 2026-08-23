@@ -1,0 +1,62 @@
+import { Outlet, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApiError } from "@/api/client";
+import { NewIssueDialog } from "@/components/issues/NewIssueDialog";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useShortcut } from "@/hooks/use-shortcut";
+import {
+	NewIssueContext,
+	type NewIssueContextValue,
+} from "./new-issue-context";
+import { Sidebar } from "./Sidebar";
+
+/**
+ * Authenticated layout: collapsible sidebar + main area, the global `C`
+ * shortcut and the New Issue dialog (brief §7.1, §7.3).
+ */
+export function AppShell() {
+	const { data: me, error } = useCurrentUser();
+	const navigate = useNavigate();
+	const [newIssue, setNewIssue] = useState<{
+		open: boolean;
+		defaultTeamId?: string;
+	}>({ open: false });
+
+	useEffect(() => {
+		// Mid-session token expiry: fall back to login.
+		if (error instanceof ApiError && error.status === 401) {
+			navigate({ to: "/login", replace: true });
+		}
+	}, [error, navigate]);
+
+	const openNewIssue = useCallback(
+		(teamId?: string) => setNewIssue({ open: true, defaultTeamId: teamId }),
+		[],
+	);
+	useShortcut("c", () => openNewIssue());
+
+	const contextValue = useMemo<NewIssueContextValue>(
+		() => ({ open: openNewIssue }),
+		[openNewIssue],
+	);
+
+	if (!me) {
+		return <div className="h-screen bg-neutral-50 dark:bg-neutral-950" />;
+	}
+
+	return (
+		<NewIssueContext.Provider value={contextValue}>
+			<div className="flex h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+				<Sidebar />
+				<main className="flex-1 overflow-y-auto">
+					<Outlet />
+				</main>
+			</div>
+			<NewIssueDialog
+				open={newIssue.open}
+				defaultTeamId={newIssue.defaultTeamId}
+				onClose={() => setNewIssue({ open: false })}
+			/>
+		</NewIssueContext.Provider>
+	);
+}

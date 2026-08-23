@@ -1,10 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import EmailStr
-from sqlalchemy import UUID, Column, DateTime, text
-from sqlmodel import Field, SQLModel
+from sqlalchemy import UUID, Column, DateTime, Text, text
+from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from core.models.membership import Membership
 
 
 class User(SQLModel, table=True):
@@ -42,3 +45,12 @@ class User(SQLModel, table=True):
     is_active: bool = Field(
         default=True, nullable=False, sa_column_kwargs={"server_default": text("true")}
     )
+    display_name: str | None = Field(default=None, max_length=100)
+    avatar_url: str | None = Field(
+        default=None, max_length=500, sa_column=Column(Text, nullable=True)
+    )
+    is_admin: bool = Field(
+        default=False, nullable=False, sa_column_kwargs={"server_default": text("false")}
+    )
+
+    memberships: list["Membership"] = Relationship(back_populates="user")

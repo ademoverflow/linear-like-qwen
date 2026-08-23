@@ -49,11 +49,16 @@ def _ensure_database_exists(url: str) -> None:
 TEST_DATABASE_URL = _test_database_url()
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
+# TestClient requests target host "testserver"; a cookie ``Domain`` attribute
+# from the dev .env would never round-trip, so tests run without one.
+os.environ["COOKIE_DOMAIN"] = ""
+
 # Only now is it safe to import the application.
 from core.main import app  # noqa: E402
 from core.models.user import User  # noqa: E402
 from core.security.password import hash_password  # noqa: E402
 from core.security.token import create_access_token_for_user  # noqa: E402
+from core.services.auth import reset_login_rate_limiter  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlmodel import SQLModel  # noqa: E402
 
@@ -75,6 +80,20 @@ def pg() -> Iterator[pg_connection]:
         yield conn
     finally:
         conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _clear_client_cookies(client: TestClient) -> None:
+    """Cookies from earlier tests must not leak into the next test."""
+    client.cookies.clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limiter() -> Iterator[None]:
+    """Give every test a fresh login rate-limit budget (ADR 0009)."""
+    reset_login_rate_limiter()
+    yield
+    reset_login_rate_limiter()
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +120,28 @@ def _truncate_tables(request: pytest.FixtureRequest) -> Iterator[None]:
 
 
 MakeUser = Callable[..., User]
+
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PASSWORD = "correct horse battery staple"  # noqa: S105 (test-only fixture password)
+
+
+def register_admin(client: TestClient) -> dict:
+    """Register the bootstrap Admin via the API and log the client in.
+
+    Returns the ``me`` payload of the created Admin; the client ends up
+    authenticated as that Admin.
+    """
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+    )
+    assert registered.status_code == 201
+    logged_in = client.post(
+        "/api/v1/auth/login",
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+    )
+    assert logged_in.status_code == 200
+    return registered.json()
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.database import get_session
+from core.database import engine
 from core.models.user import User
 from core.settings import get_settings
 
@@ -20,7 +20,6 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    session: Annotated[AsyncSession, Depends(get_session)],
     access_token: Annotated[str | None, Cookie()] = None,
     bearer_token: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
 ) -> User:
@@ -30,13 +29,17 @@ async def get_current_user(
     - Cookie-based auth (webapp)
     - Bearer token in Authorization header (mobile app)
 
+    The auth read uses its own short-lived session: the endpoint's
+    transactional session must stay untouched so services can open it with
+    ``session.begin()`` (FastAPI caches dependency values by callable, so a
+    shared ``get_session`` would leak the auth read's open transaction).
+
     Args:
         access_token: The token from cookie.
         bearer_token: The token from Authorization header.
-        session: The database session.
 
     Returns:
-        The current user.
+        The current user (detached; all attributes loaded).
 
     Raises:
         HTTPException: If the token is invalid or the user is not found.
@@ -75,19 +78,23 @@ async def get_current_user(
     except jwt.InvalidTokenError:
         raise credentials_exception from None
 
-    statement = select(User).where(User.id == user_id).limit(1)
-    result = await session.execute(statement)
+    async with AsyncSession(engine, expire_on_commit=False) as auth_session:
+        user = (
+            await auth_session.exec(select(User).where(User.id == user_id).limit(1))
+        ).one_or_none()
 
-    user = result.scalar_one_or_none()
+        if user is None:
+            raise credentials_exception
 
-    if user is None:
-        raise credentials_exception
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is deactivated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Load every attribute before the session closes and detaches the
+        # instance; the returned user is used after teardown.
+        await auth_session.refresh(user)
 
     return user

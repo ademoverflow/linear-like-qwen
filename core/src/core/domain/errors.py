@@ -67,3 +67,20 @@ class RuleViolationError(DomainError):
 
     status_code = 422
     code = "rule_violation"
+
+
+class AuthenticationError(DomainError):
+    """Credentials are invalid (401).
+
+    Used by ``POST /auth/login``; the auth dependency keeps FastAPI's native 401.
+    """
+
+    status_code = 401
+    code = "unauthenticated"
+
+
+class RateLimitError(DomainError):
+    """Too many attempts in the window (429, ADR 0009)."""
+
+    status_code = 429
+    code = "rate_limited"
