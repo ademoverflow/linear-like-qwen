@@ -31,6 +31,9 @@ def test_bootstrap_register_creates_admin(client: TestClient) -> None:
     assert body["email"] == "first@example.com"
     assert "token" not in body
     assert "access_token" not in body
+    set_cookie = response.headers["set-cookie"]
+    assert "access_token=" in set_cookie
+    assert "HttpOnly" in set_cookie
 
 
 def test_bootstrap_creates_workspace_row(client: TestClient, pg: pg_connection) -> None:

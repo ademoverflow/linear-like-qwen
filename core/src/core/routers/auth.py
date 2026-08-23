@@ -98,12 +98,14 @@ def set_auth_cookie(response: Response, token: str) -> None:
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
+    response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> MeResponse:
-    """Register: bootstrap Admin while the user base is empty, else closed."""
-    user = await auth_service.register(
+    """Register and start the session: sets the access-token cookie like login."""
+    user, access_token = await auth_service.register(
         session, email=payload.email, password=payload.password, token=payload.token
     )
+    set_auth_cookie(response, access_token)
     memberships = await auth_service.get_me(session, user)
     return me_response(user, memberships)
 

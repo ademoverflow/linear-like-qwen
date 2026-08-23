@@ -104,7 +104,7 @@ class MembershipInfo:
 
 async def register(
     session: AsyncSession, *, email: str, password: str, token: str | None = None
-) -> User:
+) -> tuple[User, str]:
     """Create an account: bootstrap while empty, otherwise via Invitation.
 
     While the user base is empty the first registrant becomes the workspace
@@ -119,7 +119,7 @@ async def register(
         token: The raw Invitation token (required once bootstrap is closed).
 
     Returns:
-        The created user.
+        The created user and a fresh access token for their session.
 
     Raises:
         ValidationError: If registration is closed without a token, or the
@@ -141,7 +141,7 @@ async def register(
             )
             session.add(user)
             await session.flush()
-            return user
+            return user, create_access_token_for_user(user.id, user.email)
         if token is None:
             raise ValidationError(MSG_REGISTRATION_CLOSED)
         invitation = await find_invitation_for_token(session, token)
@@ -171,7 +171,7 @@ async def register(
         session.add(user)
         invitation.accepted_at = utcnow()
         await session.flush()
-        return user
+        return user, create_access_token_for_user(user.id, user.email)
 
 
 async def login(

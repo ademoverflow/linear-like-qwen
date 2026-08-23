@@ -86,6 +86,9 @@ def test_register_with_valid_token_creates_user_and_marks_accepted(
     me = response.json()
     assert me["email"] == EMAIL
     assert me["is_admin"] is False
+    set_cookie = response.headers["set-cookie"]
+    assert "access_token=" in set_cookie
+    assert "HttpOnly" in set_cookie
 
     with pg.cursor() as cur:
         cur.execute("SELECT accepted_at IS NOT NULL FROM invitations WHERE email = %s", (EMAIL,))
