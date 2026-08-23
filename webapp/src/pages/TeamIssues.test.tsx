@@ -52,6 +52,27 @@ describe("TeamIssues", () => {
 		expect(screen.getByText("Backlog")).toBeTruthy();
 	});
 
+	it("shows the sidebar New Team entry to Admins and hides it from members", async () => {
+		vi.mocked(getMe).mockResolvedValue(meFixture);
+		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
+		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		expect(screen.getByRole("button", { name: "New Team" })).toBeTruthy();
+	});
+
+	it("hides the sidebar New Team entry from non-Admins", async () => {
+		vi.mocked(getMe).mockResolvedValue({
+			...meFixture,
+			is_admin: false,
+		});
+		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
+		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		expect(screen.queryByRole("button", { name: "New Team" })).toBeNull();
+	});
+
 	it("shows the empty state when the Team has no Issues", async () => {
 		vi.mocked(getMe).mockResolvedValue(meFixture);
 		vi.mocked(listTeams).mockResolvedValue([teamFixture]);

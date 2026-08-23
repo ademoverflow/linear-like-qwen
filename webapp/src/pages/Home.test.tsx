@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.stubEnv("VITE_API_URL", "http://api.test");
@@ -37,7 +37,13 @@ describe("Home", () => {
 		expect(
 			await screen.findByRole("heading", { name: "No Teams yet" }),
 		).toBeTruthy();
-		expect(screen.getByRole("button", { name: "New Team" })).toBeTruthy();
+		const main = document.querySelector("main");
+		expect(main).toBeTruthy();
+		expect(
+			within(main as HTMLElement).getByRole("button", {
+				name: "New Team",
+			}),
+		).toBeTruthy();
 	});
 
 	it("tells non-Admins to ask a workspace Admin when they have no Teams", async () => {

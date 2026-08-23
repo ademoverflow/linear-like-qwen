@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
-import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LogOut, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useState } from "react";
 import { logout, queryKeys } from "@/api/auth";
 import { listTeams } from "@/api/teams";
+import { NewTeamDialog } from "@/components/teams/NewTeamDialog";
 import { env } from "@/env";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
@@ -21,6 +23,8 @@ export function Sidebar() {
 		}
 	});
 	const queryClient = useQueryClient();
+	const { data: me } = useCurrentUser();
+	const [newTeamOpen, setNewTeamOpen] = useState(false);
 	const { data: teams } = useQuery({
 		queryKey: queryKeys.teams.all(),
 		queryFn: listTeams,
@@ -114,6 +118,20 @@ export function Sidebar() {
 			</nav>
 
 			<div className="border-t border-neutral-200 p-2 dark:border-neutral-800">
+				{me?.is_admin && (
+					<button
+						type="button"
+						onClick={() => setNewTeamOpen(true)}
+						className={
+							"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 " +
+							(collapsed ? "justify-center" : "")
+						}
+						title="New Team"
+					>
+						<Plus size={16} className="shrink-0" />
+						{!collapsed && <span>New Team</span>}
+					</button>
+				)}
 				<button
 					type="button"
 					onClick={() => logoutMutation.mutate()}
@@ -128,6 +146,7 @@ export function Sidebar() {
 					{!collapsed && <span>Log out</span>}
 				</button>
 			</div>
+			<NewTeamDialog open={newTeamOpen} onClose={() => setNewTeamOpen(false)} />
 		</div>
 	);
 }
