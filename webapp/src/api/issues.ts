@@ -87,6 +87,21 @@ export async function updateIssue(
 	return issueSchema.parse(data);
 }
 
+export interface IssueTransitionInput {
+	state_id: string;
+	// Raw server string on purpose: the transition must echo the exact
+	// timestamptz value (ADR 0008) and a JS Date would truncate microseconds.
+	updated_at: string;
+}
+
+export async function transitionIssue(
+	issueId: string,
+	input: IssueTransitionInput,
+): Promise<Issue> {
+	const data = await api.post(`/issues/${issueId}/transitions`, input);
+	return issueSchema.parse(data);
+}
+
 export async function listIssueActivity(issueId: string): Promise<Activity[]> {
 	const data = await api.get(`/issues/${issueId}/activity`);
 	return z.array(activitySchema).parse(data);

@@ -46,6 +46,16 @@ class TeamMemberResponse(BaseModel):
     role: str
 
 
+class TeamStateResponse(BaseModel):
+    """A Workflow State as exposed by the API (board columns; ADR 0011)."""
+
+    id: uuid.UUID
+    name: str
+    category: str
+    color: str
+    position: int
+
+
 def team_response(team: Team) -> TeamResponse:
     """Build a TeamResponse from a Team."""
     return TeamResponse(
@@ -84,6 +94,26 @@ async def list_teams(
     """List the Teams visible to the current user (admin: all, else own)."""
     teams = await teams_service.list_teams(session, user=user)
     return [team_response(team) for team in teams]
+
+
+@router.get("/{team_id}/states")
+async def list_team_states(
+    team_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[TeamStateResponse]:
+    """List a Team's Workflow States in position order (Team member or Admin)."""
+    states = await teams_service.list_team_states(session, user=user, team_id=team_id)
+    return [
+        TeamStateResponse(
+            id=state.id,
+            name=state.name,
+            category=state.category,
+            color=state.color,
+            position=state.position,
+        )
+        for state in states
+    ]
 
 
 @router.get("/{team_id}/members")

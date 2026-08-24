@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, cast
 
 from sqlalchemy import literal_column
@@ -24,7 +24,12 @@ from core.domain.issues import (
     validate_priority,
     validate_title,
 )
-from core.domain.workflow import Category, WorkflowStateRule, select_default_state
+from core.domain.workflow import (
+    Category,
+    WorkflowStateRule,
+    select_default_state,
+    transition,
+)
 from core.models.activity import Activity
 from core.models.issue import Issue
 from core.models.membership import Membership
@@ -37,6 +42,7 @@ from core.services.actors import load_actor
 
 ACTIVITY_ISSUE_CREATED = "issue.created"
 ACTIVITY_ISSUE_UPDATED = "issue.updated"
+ACTIVITY_ISSUE_STATE_CHANGED = "issue.state_changed"
 
 MSG_TEAM_NOT_FOUND = "Team not found"
 MSG_TEAM_ARCHIVED = "Team is archived"
@@ -46,6 +52,7 @@ MSG_ASSIGNEE_NOT_MEMBER = "Assignee must be a member of the Issue's Team"
 MSG_PARENT_INVALID = "Parent must be a non-archived Issue of the same Team, one level deep"
 MSG_PARENT_IS_SELF = "An Issue cannot be its own parent"
 MSG_TITLE_REQUIRED = "Title is required"
+MSG_STATE_NOT_IN_TEAM = "State does not belong to the Issue's Team"
 
 # Canonical edit order: the Activity rows of one update follow this sequence.
 EDITABLE_FIELDS: tuple[str, ...] = (
@@ -261,6 +268,92 @@ async def update_issue(
                     actor_id=actor.user_id,
                     change=_FieldChange(field=field, value=changes[field]),
                 )
+        await session.flush()
+        await session.refresh(issue, ["state", "assignee", "created_at", "updated_at"])
+        return team, issue
+
+
+async def transition_issue(
+    session: AsyncSession,
+    *,
+    user: User,
+    issue_id: uuid.UUID,
+    state_id: uuid.UUID,
+    updated_at: datetime,
+) -> tuple[Team, Issue]:
+    """Move an Issue to a new State (brief §3.3, §4.2).
+
+    The single code path for State changes: the generic ``update_issue``
+    cannot touch ``state_id``. The caller must echo the last-seen
+    ``updated_at``; a mismatch is a 409 (ADR 0008). Entering a completed or
+    canceled State stamps the matching timestamp and clears the other; any
+    other target clears both (``core.domain.workflow.transition``). Every
+    transition emits one ``issue.state_changed`` Activity row with the
+    from/to State names. Moving a State to itself is a no-op (no Activity,
+    no timestamp change).
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user (Team member or Admin).
+        issue_id: The Issue to transition.
+        state_id: The target State (must belong to the Issue's Team).
+        updated_at: The ``updated_at`` the client last saw.
+
+    Returns:
+        The Team and the updated Issue (with its State loaded).
+
+    Raises:
+        NotFoundError: If the Issue does not exist, is archived, or is not
+            visible to the actor (non-members get 404, not 403).
+        ForbiddenError: If the Issue's Team is archived.
+        ConflictError: If ``updated_at`` is stale.
+        ValidationError: If the target State does not belong to the
+            Issue's Team's Workflow.
+
+    """
+    async with session.begin():
+        actor = await load_actor(session, user)
+        issue = await _visible_issue(session, actor=actor, issue_id=issue_id, for_update=True)
+        if issue.updated_at != updated_at:
+            raise ConflictError(MSG_STALE_UPDATE)
+
+        team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+        if team.archived_at is not None:
+            raise ForbiddenError(MSG_TEAM_ARCHIVED)
+
+        workflow = (await session.exec(select(Workflow).where(Workflow.team_id == team.id))).one()
+        state = (
+            await session.exec(
+                select(WorkflowState).where(
+                    WorkflowState.id == state_id,
+                    WorkflowState.workflow_id == workflow.id,
+                )
+            )
+        ).one_or_none()
+        if state is None:
+            raise ValidationError(MSG_STATE_NOT_IN_TEAM)
+
+        if issue.state_id == state.id:
+            return team, issue
+
+        current_state = (
+            await session.exec(select(WorkflowState).where(WorkflowState.id == issue.state_id))
+        ).one()
+        effect = transition(_to_rule(state), datetime.now(UTC))
+        issue.state_id = state.id
+        issue.completed_at = effect.completed_at
+        issue.canceled_at = effect.canceled_at
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor.user_id,
+                kind=ACTIVITY_ISSUE_STATE_CHANGED,
+                field="state_id",
+                from_value=current_state.name,
+                to_value=state.name,
+            ),
+        )
         await session.flush()
         await session.refresh(issue, ["state", "assignee", "created_at", "updated_at"])
         return team, issue

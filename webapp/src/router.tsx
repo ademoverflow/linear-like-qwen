@@ -16,6 +16,7 @@ import { Home } from "@/pages/Home";
 import { IssueDetail } from "@/pages/IssueDetail";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
+import { TeamBoard } from "@/pages/TeamBoard";
 import { TeamIssues } from "@/pages/TeamIssues";
 
 export type AppRouterContext = { queryClient: QueryClient };
@@ -125,6 +126,13 @@ function buildRouteTree() {
 		component: IssueDetail,
 	});
 
+	// Board: Kanban by Workflow State (ticket 04).
+	const boardRoute = createRoute({
+		getParentRoute: () => appRoute,
+		path: "/teams/$teamKey/board",
+		component: TeamBoard,
+	});
+
 	// Admin screen: workspace Admins only (brief §7.1, §5.3).
 	const adminRoute = createRoute({
 		getParentRoute: () => appRoute,
@@ -146,6 +154,7 @@ function buildRouteTree() {
 			homeRoute,
 			teamIssuesRoute,
 			issueDetailRoute,
+			boardRoute,
 			adminRoute,
 		]),
 	]);

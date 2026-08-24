@@ -1,6 +1,6 @@
 import type { Me } from "@/api/auth";
 import type { Activity, Issue, IssueDetail } from "@/api/issues";
-import type { Team, TeamMember } from "@/api/teams";
+import type { Team, TeamMember, WorkflowState } from "@/api/teams";
 
 const ISO = "2026-08-22T12:00:00.000Z";
 const ISO_RAW = "2026-08-22T12:00:00.123456+00:00";
@@ -8,6 +8,7 @@ const ISO_RAW = "2026-08-22T12:00:00.123456+00:00";
 export const testTeamId = "11111111-1111-4111-8111-111111111111";
 export const testUserId = "22222222-2222-4222-8222-222222222222";
 export const testStateId = "33333333-3333-4333-8333-333333333333";
+export const doneStateId = "33333333-3333-4333-8333-333333333304";
 export const testIssueId = "44444444-4444-4444-8444-444444444444";
 
 export const meFixture: Me = {
@@ -100,3 +101,48 @@ export const issueDetailFixture: IssueDetail = {
 	parent_identifier: null,
 	parent_title: null,
 };
+
+export const statesFixture: WorkflowState[] = [
+	{
+		id: testStateId,
+		name: "Backlog",
+		category: "backlog",
+		color: "#a2a2a2",
+		position: 0,
+	},
+	{
+		id: "33333333-3333-4333-8333-333333333301",
+		name: "Todo",
+		category: "unstarted",
+		color: "#737373",
+		position: 1,
+	},
+	{
+		id: "33333333-3333-4333-8333-333333333302",
+		name: "In Progress",
+		category: "started",
+		color: "#f2c94c",
+		position: 2,
+	},
+	{
+		id: "33333333-3333-4333-8333-333333333303",
+		name: "In Review",
+		category: "started",
+		color: "#fbc64d",
+		position: 3,
+	},
+	{
+		id: doneStateId,
+		name: "Done",
+		category: "completed",
+		color: "#4cb371",
+		position: 4,
+	},
+	{
+		id: "33333333-3333-4333-8333-333333333305",
+		name: "Canceled",
+		category: "canceled",
+		color: "#d98c8c",
+		position: 5,
+	},
+];

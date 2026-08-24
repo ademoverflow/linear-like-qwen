@@ -22,6 +22,7 @@ vi.mock("@/api/teams", async (importOriginal) => {
 		listTeams: vi.fn(),
 		createTeam: vi.fn(),
 		listTeamMembers: vi.fn(),
+		listTeamStates: vi.fn(),
 	};
 });
 
@@ -33,22 +34,31 @@ vi.mock("@/api/issues", async (importOriginal) => {
 		createIssue: vi.fn(),
 		getIssue: vi.fn(),
 		updateIssue: vi.fn(),
+		transitionIssue: vi.fn(),
 		listIssueActivity: vi.fn(),
 	};
 });
 
 const { getMe } = await import("@/api/auth");
-const { listTeamMembers, listTeams } = await import("@/api/teams");
-const { getIssue, listIssueActivity, listIssues, updateIssue } = await import(
-	"@/api/issues"
+const { listTeamMembers, listTeamStates, listTeams } = await import(
+	"@/api/teams"
 );
+const {
+	getIssue,
+	listIssueActivity,
+	listIssues,
+	transitionIssue,
+	updateIssue,
+} = await import("@/api/issues");
 const { renderAt } = await import("../test/test-router");
 const {
 	activityFixture,
+	doneStateId,
 	issueDetailFixture,
 	issueFixture,
 	memberFixture,
 	meFixture,
+	statesFixture,
 	teamFixture,
 } = await import("../test/fixtures");
 
@@ -59,6 +69,7 @@ function mockCommon() {
 	vi.mocked(listTeamMembers).mockResolvedValue([memberFixture]);
 	vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
 	vi.mocked(listIssueActivity).mockResolvedValue(activityFixture);
+	vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
 }
 
 describe("IssueDetail", () => {
@@ -72,7 +83,7 @@ describe("IssueDetail", () => {
 		expect(screen.getByText("bold")).toBeTruthy();
 		// Properties.
 		expect(
-			within(screen.getByLabelText("Properties")).getByText("Backlog"),
+			await within(screen.getByLabelText("Properties")).findByText("Backlog"),
 		).toBeTruthy();
 		expect(screen.getByText("No priority")).toBeTruthy();
 		expect(screen.getByText("Unassigned")).toBeTruthy();
@@ -109,6 +120,30 @@ describe("IssueDetail", () => {
 			expect(updateIssue).toHaveBeenCalledWith(issueFixture.id, {
 				updated_at: issueDetailFixture.updated_at,
 				title: "New title",
+			}),
+		);
+	});
+
+	it("transitions the State through the same path with the last-seen updated_at", async () => {
+		mockCommon();
+		vi.mocked(transitionIssue).mockResolvedValue({
+			...issueFixture,
+			state_name: "Done",
+			state_category: "completed",
+			state_color: "#4cb371",
+		});
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const stateSelect = await screen.findByLabelText("State");
+		await waitFor(() =>
+			expect(stateSelect.querySelectorAll("option")).toHaveLength(6),
+		);
+		fireEvent.change(stateSelect, {
+			target: { value: doneStateId },
+		});
+		await waitFor(() =>
+			expect(transitionIssue).toHaveBeenCalledWith(issueFixture.id, {
+				state_id: doneStateId,
+				updated_at: issueDetailFixture.updated_at,
 			}),
 		);
 	});

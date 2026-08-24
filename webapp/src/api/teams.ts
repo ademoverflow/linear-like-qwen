@@ -23,6 +23,22 @@ export const teamMemberSchema = z.object({
 
 export type TeamMember = z.infer<typeof teamMemberSchema>;
 
+export const workflowStateSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	category: z.enum([
+		"backlog",
+		"unstarted",
+		"started",
+		"completed",
+		"canceled",
+	]),
+	color: z.string(),
+	position: z.number().int(),
+});
+
+export type WorkflowState = z.infer<typeof workflowStateSchema>;
+
 export async function listTeams(): Promise<Team[]> {
 	const data = await api.get("/teams");
 	return z.array(teamSchema).parse(data);
@@ -32,6 +48,11 @@ export async function listTeamMembers(teamId: string): Promise<TeamMember[]> {
 	const data = await api.get(`/teams/${teamId}/members`);
 	return z.array(teamMemberSchema).parse(data);
 }
+export async function listTeamStates(teamId: string): Promise<WorkflowState[]> {
+	const data = await api.get(`/teams/${teamId}/states`);
+	return z.array(workflowStateSchema).parse(data);
+}
+
 export async function createTeam(input: {
 	name: string;
 	key: string;

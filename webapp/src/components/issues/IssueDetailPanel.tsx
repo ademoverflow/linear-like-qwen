@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Issue, IssueDetail, IssueUpdateInput } from "@/api/issues";
-import type { TeamMember } from "@/api/teams";
+import type { TeamMember, WorkflowState } from "@/api/teams";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { useUpdateIssue } from "@/hooks/use-update-issue";
 import { Markdown } from "@/lib/markdown";
 import { ActivityFeed } from "./ActivityFeed";
@@ -25,10 +26,10 @@ const ESTIMATE_OPTIONS = [
 ];
 
 /**
- * The Issue detail panel (brief §7.2.3, ticket 03): inline-editable title,
- * Markdown description with edit/preview, the properties column and the
- * Activity feed. State is display-only until transitions ship (ticket 04);
- * Labels are a placeholder until ticket 05.
+ * The Issue detail panel (brief §7.2.3, ticket 03 + 04): inline-editable
+ * title, Markdown description with edit/preview, the properties column and
+ * Activity feed. State is a picker on the same transition path as the
+ * Board (ticket 04); Labels are a placeholder until ticket 05.
  */
 export function IssueDetailPanel({
 	issue,
@@ -36,14 +37,17 @@ export function IssueDetailPanel({
 	teamId,
 	issues,
 	members,
+	states,
 }: {
 	issue: IssueDetail;
 	teamKey: string;
 	teamId: string;
 	issues: Issue[];
 	members: TeamMember[];
+	states: WorkflowState[];
 }) {
 	const update = useUpdateIssue(teamId, issue.id);
+	const transition = useTransitionIssue(teamId);
 	const dueDateId = useId();
 
 	const patch = useCallback(
@@ -104,19 +108,21 @@ export function IssueDetailPanel({
 				aria-label="Properties"
 				className="grid grid-cols-2 gap-4 md:grid-cols-3"
 			>
-				<div className="flex flex-col gap-1.5">
-					<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-						State
-					</span>
-					<span className="flex h-9 items-center gap-1.5 text-sm">
-						<span
-							className="inline-block h-2.5 w-2.5 rounded-full"
-							style={{ backgroundColor: issue.state_color }}
-							aria-hidden
-						/>
-						{issue.state_name}
-					</span>
-				</div>
+				<Select
+					label="State"
+					value={issue.state_id}
+					onChange={(value) =>
+						transition.mutate({
+							issue_id: issue.id,
+							state_id: value,
+							updated_at: issue.updated_at,
+						})
+					}
+					options={states.map((state) => ({
+						value: state.id,
+						label: state.name,
+					}))}
+				/>
 				<div className="flex flex-col gap-1.5">
 					<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 						Labels

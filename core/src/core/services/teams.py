@@ -116,6 +116,38 @@ async def list_teams(session: AsyncSession, *, user: User) -> list[Team]:
     return list((await session.exec(statement)).all())
 
 
+async def list_team_states(
+    session: AsyncSession, *, user: User, team_id: uuid.UUID
+) -> list[WorkflowState]:
+    """List a Team's Workflow States in position order (board columns; ADR 0011).
+
+    Args:
+        session: The database session.
+        user: The authenticated acting user (Team member or Admin).
+        team_id: The Team to list States for.
+
+    Returns:
+        The Team's Workflow States ordered by position.
+
+    Raises:
+        NotFoundError: If the Team does not exist or is not visible to the
+            actor (non-members get 404, not 403).
+
+    """
+    actor = await load_actor(session, user)
+    team = (await session.exec(select(Team).where(Team.id == team_id))).one_or_none()
+    if team is None or not can(actor, Action.TEAM_VIEW, TeamResource(team.id)):
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
+    workflow = (await session.exec(select(Workflow).where(Workflow.team_id == team.id))).one()
+    return list(
+        await session.exec(
+            select(WorkflowState)
+            .where(WorkflowState.workflow_id == workflow.id)
+            .order_by(WorkflowState.position)  # type: ignore[attr-defined,arg-type]  # SQLModel field is a Column at runtime
+        )
+    )
+
+
 async def list_team_members(
     session: AsyncSession, *, user: User, team_id: uuid.UUID
 ) -> list[tuple[User, Role]]:

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { getIssue, listIssues } from "@/api/issues";
 import { queryKeys } from "@/api/query-keys";
-import { listTeamMembers, listTeams } from "@/api/teams";
+import { listTeamMembers, listTeamStates, listTeams } from "@/api/teams";
 import { IssueCard } from "@/components/issues/IssueCard";
 import { IssueDetailPanel } from "@/components/issues/IssueDetailPanel";
 import { useNewIssue } from "@/components/layout/new-issue-context";
@@ -39,6 +39,11 @@ export function IssueDetail() {
 	const membersQuery = useQuery({
 		queryKey: queryKeys.teams.members(team?.id ?? ""),
 		queryFn: () => (team ? listTeamMembers(team.id) : Promise.resolve([])),
+		enabled: team !== undefined,
+	});
+	const statesQuery = useQuery({
+		queryKey: queryKeys.teams.states(team?.id ?? ""),
+		queryFn: () => (team ? listTeamStates(team.id) : Promise.resolve([])),
 		enabled: team !== undefined,
 	});
 
@@ -103,6 +108,7 @@ export function IssueDetail() {
 						teamId={team.id}
 						issues={issuesQuery.data ?? []}
 						members={membersQuery.data ?? []}
+						states={statesQuery.data ?? []}
 					/>
 				) : (
 					<PanelSkeleton />

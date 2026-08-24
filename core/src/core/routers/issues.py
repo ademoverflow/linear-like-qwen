@@ -73,6 +73,13 @@ class IssueUpdateRequest(BaseModel):
     estimate: int | None = Field(default=None, ge=0, le=21)
 
 
+class IssueTransitionRequest(BaseModel):
+    """Body for ``POST /issues/{id}/transitions`` (ADR 0008: echo the last-seen ``updated_at``)."""
+
+    state_id: uuid.UUID
+    updated_at: datetime
+
+
 class ActivityResponse(BaseModel):
     """An Activity row as exposed by the API (from/to are display-ready text)."""
 
@@ -179,6 +186,24 @@ async def update_issue(
         issue_id=issue_id,
         updated_at=payload.updated_at,
         changes=changes,
+    )
+    return issue_response(issue, team.key)
+
+
+@router.post("/{issue_id}/transitions")
+async def transition_issue(
+    issue_id: uuid.UUID,
+    payload: IssueTransitionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueResponse:
+    """Move an Issue to a new State (Team member or Admin); 409 when stale."""
+    team, issue = await issues_service.transition_issue(
+        session,
+        user=user,
+        issue_id=issue_id,
+        state_id=payload.state_id,
+        updated_at=payload.updated_at,
     )
     return issue_response(issue, team.key)
 

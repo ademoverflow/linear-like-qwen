@@ -118,6 +118,17 @@ export function Sidebar() {
 								</span>
 								{!collapsed && <span className="truncate">{team.name}</span>}
 							</Link>
+							{!collapsed && (
+								<div className="ml-7 mt-0.5 flex flex-col gap-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
+									<Link
+										to="/teams/$teamKey/board"
+										params={{ teamKey: team.key }}
+										className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+									>
+										Board
+									</Link>
+								</div>
+							)}
 						</li>
 					))}
 				</ul>

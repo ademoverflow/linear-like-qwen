@@ -7,6 +7,7 @@ export const queryKeys = {
 	teams: {
 		all: () => ["teams"] as const,
 		members: (teamId: string) => ["teams", "members", teamId] as const,
+		states: (teamId: string) => ["teams", "states", teamId] as const,
 	},
 	issues: {
 		team: (teamId: string) => ["issues", "team", teamId] as const,
