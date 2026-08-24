@@ -27,6 +27,11 @@ const PRIORITY_STYLE: Record<
 	low: { icon: ChevronDown, className: "text-neutral-400", label: "Low" },
 };
 
+/** Priority options for pickers and filters (single source of labels). */
+export const PRIORITY_OPTIONS: { value: Priority; label: string }[] = (
+	["none", "urgent", "high", "medium", "low"] as const
+).map((value) => ({ value, label: PRIORITY_STYLE[value].label }));
+
 /** Linear-style priority glyph, consistent across list, board and detail. */
 export function PriorityGlyph({
 	priority,

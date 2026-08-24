@@ -7,6 +7,8 @@ relies on this file to populate ``SQLModel.metadata`` for autogenerate.
 from core.models.activity import Activity
 from core.models.invitation import Invitation
 from core.models.issue import Issue
+from core.models.issue_label import IssueLabel
+from core.models.label import Label
 from core.models.membership import Membership
 from core.models.team import Team
 from core.models.user import User
@@ -18,6 +20,8 @@ __all__ = [
     "Activity",
     "Invitation",
     "Issue",
+    "IssueLabel",
+    "Label",
     "Membership",
     "Team",
     "User",

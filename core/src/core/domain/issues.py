@@ -1,8 +1,12 @@
 """Issue input invariants (pure, no I/O; brief §3, ADR 0004).
 
-These validate the editable Issue fields (brief §3.1) so services stay
-declarative and the rules are unit-testable without a database.
+These validate the editable Issue fields (brief §3.1) and the bulk
+operation rules (brief §4.4) so services stay declarative and the rules
+are unit-testable without a database.
 """
+
+import uuid
+from dataclasses import dataclass
 
 from core.domain.errors import ValidationError
 
@@ -91,3 +95,67 @@ def validate_estimate(estimate: int | None) -> int | None:
     if estimate is not None and not ESTIMATE_MIN <= estimate <= ESTIMATE_MAX:
         raise ValidationError(MSG_ESTIMATE_INVALID)
     return estimate
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations (brief §4.4, ticket 05)
+# ---------------------------------------------------------------------------
+
+MSG_BULK_NO_ACTION = "A bulk operation needs exactly one action"
+MSG_BULK_MULTI_ACTION = "A bulk operation accepts only one action"
+
+
+@dataclass(frozen=True)
+class BulkAction:
+    """The single action of a bulk operation (exactly one field set)."""
+
+    state_id: uuid.UUID | None = None
+    assignee_id: uuid.UUID | None = None
+    add_label_ids: tuple[uuid.UUID, ...] = ()
+    remove_label_ids: tuple[uuid.UUID, ...] = ()
+    archive: bool = False
+
+
+def parse_bulk_action(
+    *,
+    state_id: uuid.UUID | None,
+    assignee_id: uuid.UUID | None,
+    add_label_ids: tuple[uuid.UUID, ...],
+    remove_label_ids: tuple[uuid.UUID, ...],
+    archive: bool,
+) -> BulkAction:
+    """Validate that a bulk request carries exactly one action.
+
+    Args:
+        state_id: Target State id (the transition action).
+        assignee_id: Target assignee id (the assign action).
+        add_label_ids: Label ids to attach (the add-labels action).
+        remove_label_ids: Label ids to detach (the remove-labels action).
+        archive: Whether the action is archiving (must be ``True`` to
+            count as the archive action).
+
+    Returns:
+        The parsed action.
+
+    Raises:
+        ValidationError: If zero or several actions are given.
+
+    """
+    actions = [
+        state_id is not None,
+        assignee_id is not None,
+        len(add_label_ids) > 0,
+        len(remove_label_ids) > 0,
+        archive,
+    ]
+    if not any(actions):
+        raise ValidationError(MSG_BULK_NO_ACTION)
+    if sum(actions) > 1:
+        raise ValidationError(MSG_BULK_MULTI_ACTION)
+    return BulkAction(
+        state_id=state_id,
+        assignee_id=assignee_id,
+        add_label_ids=add_label_ids,
+        remove_label_ids=remove_label_ids,
+        archive=archive,
+    )

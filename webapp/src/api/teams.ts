@@ -61,3 +61,44 @@ export async function createTeam(input: {
 	const data = await api.post("/teams", input);
 	return teamSchema.parse(data);
 }
+
+/** A Team-scoped Label (brief §2; owner-managed, ticket 05). */
+export const labelSchema = z.object({
+	id: z.string().uuid(),
+	team_id: z.string().uuid(),
+	name: z.string(),
+	color: z.string(),
+	created_at: z.coerce.date(),
+	updated_at: z.coerce.date(),
+});
+
+export type Label = z.infer<typeof labelSchema>;
+
+export async function listTeamLabels(teamId: string): Promise<Label[]> {
+	const data = await api.get(`/teams/${teamId}/labels`);
+	return z.array(labelSchema).parse(data);
+}
+
+export async function createTeamLabel(
+	teamId: string,
+	input: { name: string; color: string },
+): Promise<Label> {
+	const data = await api.post(`/teams/${teamId}/labels`, input);
+	return labelSchema.parse(data);
+}
+
+export async function updateTeamLabel(
+	teamId: string,
+	labelId: string,
+	input: { name?: string; color?: string },
+): Promise<Label> {
+	const data = await api.patch(`/teams/${teamId}/labels/${labelId}`, input);
+	return labelSchema.parse(data);
+}
+
+export async function deleteTeamLabel(
+	teamId: string,
+	labelId: string,
+): Promise<void> {
+	await api.delete(`/teams/${teamId}/labels/${labelId}`);
+}

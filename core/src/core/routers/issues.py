@@ -10,6 +10,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from core.database import get_session
 from core.domain.identifiers import format_identifier
+from core.domain.issues import parse_bulk_action
+from core.domain.listing import (
+    IssueQuery,
+    decode_cursor,
+    parse_sort,
+    validate_limit,
+    validate_priorities,
+)
 from core.middlewares.user import get_current_user
 from core.models.issue import Issue
 from core.models.user import User
@@ -23,6 +31,14 @@ class IssueCreateRequest(BaseModel):
 
     team_id: uuid.UUID
     title: str = Field(min_length=1, max_length=255)
+
+
+class IssueLabelResponse(BaseModel):
+    """A Label attached to an Issue (ticket 05)."""
+
+    id: uuid.UUID
+    name: str
+    color: str
 
 
 class IssueResponse(BaseModel):
@@ -51,6 +67,14 @@ class IssueResponse(BaseModel):
     archived_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    labels: list[IssueLabelResponse]
+
+
+class IssueListResponse(BaseModel):
+    """A page of Issues with the cursor for the next page (ticket 05)."""
+
+    issues: list[IssueResponse]
+    next_cursor: str | None
 
 
 class IssueDetailResponse(IssueResponse):
@@ -71,6 +95,7 @@ class IssueUpdateRequest(BaseModel):
     parent_id: uuid.UUID | None = None
     due_date: date | None = None
     estimate: int | None = Field(default=None, ge=0, le=21)
+    label_ids: list[uuid.UUID] | None = None
 
 
 class IssueTransitionRequest(BaseModel):
@@ -119,6 +144,10 @@ def issue_response(issue: Issue, team_key: str) -> IssueResponse:
         archived_at=issue.archived_at,
         created_at=issue.created_at,
         updated_at=issue.updated_at,
+        labels=[
+            IssueLabelResponse(id=label.id, name=label.name, color=label.color)
+            for label in issue.labels
+        ],
     )
 
 
@@ -146,14 +175,41 @@ async def create_issue(
 
 
 @router.get("")
-async def list_issues(
+async def list_issues(  # noqa: PLR0913  # FastAPI query params
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
     team_id: Annotated[uuid.UUID, Query()],
-) -> list[IssueResponse]:
-    """List a Team's non-archived Issues, newest number first."""
-    team, issues = await issues_service.list_issues(session, user=user, team_id=team_id)
-    return [issue_response(issue, team.key) for issue in issues]
+    state_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    assignee_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    label_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    priority: Annotated[list[str] | None, Query()] = None,
+    sort: Annotated[str | None, Query()] = None,
+    cursor: Annotated[str | None, Query()] = None,
+    limit: Annotated[int | None, Query()] = None,
+) -> IssueListResponse:
+    """List a Team's Issues with filters, sort and cursor pagination.
+
+    Filters: ``state_id``, ``assignee_id``, ``label_id``, ``priority``
+    (repeated, combinable). Sort: ``created|updated|priority:asc|desc``
+    (default ``created:desc``). Pagination: keyset cursor (default page 50,
+    max 200).
+    """
+    query = IssueQuery(
+        state_ids=tuple(state_id or ()),
+        assignee_ids=tuple(assignee_id or ()),
+        label_ids=tuple(label_id or ()),
+        priorities=validate_priorities(tuple(priority or ())),
+        sort=parse_sort(sort),
+        cursor=decode_cursor(cursor) if cursor is not None else None,
+        limit=validate_limit(limit),
+    )
+    team, issues, next_cursor = await issues_service.list_issues(
+        session, user=user, team_id=team_id, query=query
+    )
+    return IssueListResponse(
+        issues=[issue_response(issue, team.key) for issue in issues],
+        next_cursor=next_cursor,
+    )
 
 
 @router.get("/{issue_id}")
@@ -206,6 +262,43 @@ async def transition_issue(
         updated_at=payload.updated_at,
     )
     return issue_response(issue, team.key)
+
+
+class IssueBulkRequest(BaseModel):
+    """Body for ``POST /issues/bulk`` (brief §4.4: exactly one action)."""
+
+    issue_ids: list[uuid.UUID] = Field(min_length=1)
+    state_id: uuid.UUID | None = None
+    assignee_id: uuid.UUID | None = None
+    add_label_ids: list[uuid.UUID] | None = None
+    remove_label_ids: list[uuid.UUID] | None = None
+    archive: bool | None = None
+
+
+class IssueBulkResponse(BaseModel):
+    """The Issues updated by a bulk operation."""
+
+    issues: list[IssueResponse]
+
+
+@router.post("/bulk")
+async def bulk_update_issues(
+    payload: IssueBulkRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueBulkResponse:
+    """Apply one bulk action (all-or-nothing, one Activity per Issue)."""
+    action = parse_bulk_action(
+        state_id=payload.state_id,
+        assignee_id=payload.assignee_id,
+        add_label_ids=tuple(payload.add_label_ids or ()),
+        remove_label_ids=tuple(payload.remove_label_ids or ()),
+        archive=bool(payload.archive),
+    )
+    team, issues = await issues_service.bulk_update_issues(
+        session, user=user, issue_ids=payload.issue_ids, action=action
+    )
+    return IssueBulkResponse(issues=[issue_response(issue, team.key) for issue in issues])
 
 
 @router.get("/{issue_id}/activity")

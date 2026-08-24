@@ -1,14 +1,16 @@
-"""Issue use-cases (brief §3): creation, detail, editing, Activity listing."""
+"""Issue use-cases (brief §3-§4): create, list, edit, transition, Activity and bulk."""
 
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, cast
 
-from sqlalchemy import literal_column
-from sqlalchemy.orm import joinedload
+from sqlalchemy import and_, case, literal_column, or_
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql.elements import Case, ColumnElement
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.sql.expression import SelectOfScalar
 
 from core.domain.authz import Action, Actor, IssueResource, TeamResource, can
 from core.domain.errors import (
@@ -19,10 +21,21 @@ from core.domain.errors import (
 )
 from core.domain.identifiers import format_identifier
 from core.domain.issues import (
+    BulkAction,
     validate_description,
     validate_estimate,
     validate_priority,
     validate_title,
+)
+from core.domain.listing import (
+    PRIORITY_RANK,
+    Cursor,
+    CursorIssue,
+    IssueQuery,
+    SortSpec,
+    cursor_sort_value,
+    encode_cursor,
+    validate_cursor_for_sort,
 )
 from core.domain.workflow import (
     Category,
@@ -32,6 +45,7 @@ from core.domain.workflow import (
 )
 from core.models.activity import Activity
 from core.models.issue import Issue
+from core.models.label import Label
 from core.models.membership import Membership
 from core.models.team import Team
 from core.models.user import User
@@ -63,7 +77,18 @@ EDITABLE_FIELDS: tuple[str, ...] = (
     "parent_id",
     "due_date",
     "estimate",
+    "label_ids",
 )
+
+# Attributes refreshed after every write so the echoed ``updated_at`` (and the
+# eager-loaded relationships) are the real server values, not naive defaults.
+REFRESH_ATTRIBUTES: list[str] = ["state", "assignee", "labels", "created_at", "updated_at"]
+
+MSG_BULK_ISSUES_NOT_FOUND = "Some Issues could not be found"
+MSG_BULK_SAME_TEAM = "Issues must belong to the same Team"
+MSG_BULK_ARCHIVED = "Some Issues are archived"
+MSG_ARCHIVE_OWNER_ONLY = "Only a Team owner can archive Issues"
+MSG_LABELS_NOT_IN_TEAM = "Labels must belong to the Issue's Team"
 
 
 def _to_rule(state: WorkflowState) -> WorkflowStateRule:
@@ -145,47 +170,138 @@ async def create_issue(
                 kind=ACTIVITY_ISSUE_CREATED,
             ),
         )
-        await session.refresh(issue, ["state", "created_at", "updated_at"])
+        await session.refresh(issue, REFRESH_ATTRIBUTES)
         return team, issue
 
 
 async def list_issues(
-    session: AsyncSession, *, user: User, team_id: uuid.UUID
-) -> tuple[Team, list[Issue]]:
-    """List a Team's non-archived Issues, newest number first.
+    session: AsyncSession, *, user: User, team_id: uuid.UUID, query: IssueQuery
+) -> tuple[Team, list[Issue], str | None]:
+    """List a Team's non-archived Issues with filters, sort and pagination.
+
+    Filters (``state_id``/``assignee_id``/``label_id``/``priority``,
+    combinable), sort (``created``/``updated``/``priority`` with
+    ``asc``/``desc``, default ``created:desc``) and keyset (cursor)
+    pagination (default page 50, max 200) per brief §9.
 
     Args:
         session: The database session.
         user: The authenticated acting user.
         team_id: The Team to list Issues for.
+        query: The parsed, validated list request.
 
     Returns:
-        The Team and its Issues (State and assignee eager-loaded).
+        The Team, the page of Issues (State/assignee/labels eager-loaded)
+        and the cursor for the next page (``None`` when there is none).
 
     Raises:
         NotFoundError: If the Team does not exist or is not visible to the
-            actor.
+            actor (non-members get 404, not 403).
 
     """
     actor = await load_actor(session, user)
     team = (await session.exec(select(Team).where(Team.id == team_id))).one_or_none()
     if team is None or not can(actor, Action.TEAM_VIEW, TeamResource(team.id)):
         raise NotFoundError(MSG_TEAM_NOT_FOUND)
-    issues = (
-        await session.exec(
-            select(Issue)
-            .where(
-                Issue.team_id == team.id,
-                Issue.archived_at.is_(None),  # type: ignore[union-attr]
-            )
-            .options(
-                joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
-                joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
-            )
-            .order_by(Issue.number.desc())  # type: ignore[attr-defined]
+    if query.cursor is not None:
+        validate_cursor_for_sort(query.cursor, query.sort)
+    statement = (
+        select(Issue)
+        .where(
+            Issue.team_id == team.id,
+            Issue.archived_at.is_(None),  # type: ignore[union-attr]
         )
-    ).all()
-    return team, list(issues)
+        .options(
+            joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
+            joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
+            selectinload(Issue.labels),  # type: ignore[arg-type,attr-defined]  # M2M: selectinload avoids row duplication
+        )
+    )
+    if query.state_ids:
+        statement = statement.where(Issue.state_id.in_(query.state_ids))  # type: ignore[attr-defined]
+    if query.assignee_ids:
+        statement = statement.where(Issue.assignee_id.in_(query.assignee_ids))  # type: ignore[union-attr]
+    if query.priorities:
+        statement = statement.where(Issue.priority.in_(query.priorities))  # type: ignore[attr-defined]
+    if query.label_ids:
+        # EXISTS over the M2M: an Issue matches when any of its Labels is in
+        # the filter set (Labels are always same-Team by construction).
+        statement = statement.where(
+            Issue.labels.any(Label.id.in_(query.label_ids))  # type: ignore[attr-defined]
+        )
+    statement = _apply_sort(statement, query.sort)
+    if query.cursor is not None:
+        statement = statement.where(_cursor_predicate(query.sort, query.cursor))
+    statement = statement.limit(query.limit + 1)
+    rows = list((await session.exec(statement)).all())
+    has_more = len(rows) > query.limit
+    page = rows[: query.limit]
+    next_cursor: str | None = None
+    if has_more and page:
+        last = page[-1]
+        value = cursor_sort_value(
+            query.sort, CursorIssue(last.created_at, last.updated_at, last.priority)
+        )
+        next_cursor = encode_cursor(query.sort, value, last.number, last.id)
+    return team, page, next_cursor
+
+
+def _apply_sort(statement: SelectOfScalar[Issue], sort: SortSpec) -> SelectOfScalar[Issue]:
+    """Order a list statement per the sort (tie-breaker: number desc)."""
+    if sort.key == "created":
+        ordered = statement.order_by(
+            Issue.created_at.desc() if sort.direction == "desc" else Issue.created_at.asc(),  # type: ignore[attr-defined]
+            Issue.number.desc(),  # type: ignore[attr-defined]
+        )
+    elif sort.key == "updated":
+        ordered = statement.order_by(
+            Issue.updated_at.desc() if sort.direction == "desc" else Issue.updated_at.asc(),  # type: ignore[attr-defined]
+            Issue.number.desc(),  # type: ignore[attr-defined]
+        )
+    else:
+        rank = _priority_rank_expr()
+        ordered = statement.order_by(
+            rank.desc() if sort.direction == "desc" else rank.asc(),
+            Issue.number.desc(),  # type: ignore[attr-defined]
+        )
+    return ordered
+
+
+def _priority_rank_expr() -> Case:
+    """Return a SQL expression ranking priorities (urgent highest, none lowest)."""
+    return case(
+        (Issue.priority == "urgent", PRIORITY_RANK["urgent"]),  # type: ignore[arg-type]
+        (Issue.priority == "high", PRIORITY_RANK["high"]),  # type: ignore[arg-type]
+        (Issue.priority == "medium", PRIORITY_RANK["medium"]),  # type: ignore[arg-type]
+        (Issue.priority == "low", PRIORITY_RANK["low"]),  # type: ignore[arg-type]
+        else_=PRIORITY_RANK["none"],
+    )
+
+
+def _cursor_predicate(sort: SortSpec, cursor: Cursor) -> ColumnElement[bool]:
+    """Keyset predicate: strictly after the cursor's row in sort order."""
+    if sort.key in ("created", "updated"):
+        column = Issue.created_at if sort.key == "created" else Issue.updated_at
+        timestamp = datetime.fromisoformat(str(cursor.value))
+        if sort.direction == "desc":
+            return or_(
+                column < timestamp,  # type: ignore[arg-type]
+                and_(column == timestamp, Issue.number < cursor.number),  # type: ignore[arg-type]
+            )
+        return or_(
+            column > timestamp,  # type: ignore[arg-type]
+            and_(column == timestamp, Issue.number < cursor.number),  # type: ignore[arg-type]
+        )
+    rank = _priority_rank_expr()
+    if sort.direction == "desc":
+        return or_(
+            rank < cursor.value,
+            and_(rank == cursor.value, Issue.number < cursor.number),  # type: ignore[arg-type]
+        )
+    return or_(
+        rank > cursor.value,
+        and_(rank == cursor.value, Issue.number < cursor.number),  # type: ignore[arg-type]
+    )
 
 
 async def get_issue(
@@ -260,16 +376,27 @@ async def update_issue(
 
         team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
         for field in EDITABLE_FIELDS:
-            if field in changes:
-                await _apply_change(
+            if field not in changes:
+                continue
+            if field == "label_ids":
+                # Not an Issue column: full-set Label replace with per-label
+                # Activity rows (ticket 05).
+                await _apply_label_change(
                     session,
                     issue=issue,
-                    team=team,
                     actor_id=actor.user_id,
-                    change=_FieldChange(field=field, value=changes[field]),
+                    label_ids=cast("list[uuid.UUID]", changes[field]),
                 )
+                continue
+            await _apply_change(
+                session,
+                issue=issue,
+                team=team,
+                actor_id=actor.user_id,
+                change=_FieldChange(field=field, value=changes[field]),
+            )
         await session.flush()
-        await session.refresh(issue, ["state", "assignee", "created_at", "updated_at"])
+        await session.refresh(issue, REFRESH_ATTRIBUTES)
         return team, issue
 
 
@@ -355,7 +482,7 @@ async def transition_issue(
             ),
         )
         await session.flush()
-        await session.refresh(issue, ["state", "assignee", "created_at", "updated_at"])
+        await session.refresh(issue, REFRESH_ATTRIBUTES)
         return team, issue
 
 
@@ -469,6 +596,7 @@ async def _visible_issue(
         .options(
             joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
             joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
+            selectinload(Issue.labels),  # type: ignore[arg-type,attr-defined]  # M2M: selectinload avoids row duplication
         )
     )
     if for_update:
@@ -496,6 +624,69 @@ async def _ensure_assignee_member(session: AsyncSession, issue: Issue, user_id: 
     if membership is None:
         raise ValidationError(MSG_ASSIGNEE_NOT_MEMBER)
     return user
+
+
+async def _apply_label_change(
+    session: AsyncSession, *, issue: Issue, actor_id: uuid.UUID, label_ids: list[uuid.UUID]
+) -> None:
+    """Replace an Issue's Label set (full-set replace, ticket 05).
+
+    Emits exactly one ``issue.updated`` Activity row per added label
+    (``to_value`` = name) and per removed label (``from_value`` = name);
+    removed rows first, then added, each name-ordered.
+    """
+    target = await _ensure_labels(session, issue, label_ids)
+    target_ids = {label.id for label in target}
+    current_ids = {label.id for label in issue.labels}
+    removed = sorted(
+        (label for label in issue.labels if label.id not in target_ids),
+        key=lambda label: label.name,
+    )
+    added = sorted(
+        (label for label in target if label.id not in current_ids), key=lambda label: label.name
+    )
+    if not removed and not added:
+        return
+    issue.labels = target
+    for label in removed:
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="label_id",
+                from_value=label.name,
+            ),
+        )
+    for label in added:
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="label_id",
+                to_value=label.name,
+            ),
+        )
+
+
+async def _ensure_labels(
+    session: AsyncSession, issue: Issue, label_ids: list[uuid.UUID]
+) -> list[Label]:
+    """Load the target Labels; every id must be a Label of the Issue's Team."""
+    if not label_ids:
+        return []
+    rows = list(
+        await session.exec(
+            select(Label).where(Label.id.in_(label_ids), Label.team_id == issue.team_id)  # type: ignore[attr-defined]
+        )
+    )
+    if len(rows) != len(set(label_ids)):
+        raise ValidationError(MSG_LABELS_NOT_IN_TEAM)
+    by_id = {label.id: label for label in rows}
+    return [by_id[label_id] for label_id in dict.fromkeys(label_ids)]
 
 
 async def _ensure_parent(session: AsyncSession, issue: Issue, parent_id: uuid.UUID) -> Issue:
@@ -553,3 +744,268 @@ async def list_issue_activity(
         )
     ).all()
     return list(activities)
+
+
+async def bulk_update_issues(
+    session: AsyncSession,
+    *,
+    user: User,
+    issue_ids: list[uuid.UUID],
+    action: BulkAction,
+) -> tuple[Team, list[Issue]]:
+    """Apply one bulk action to several Issues of one Team (brief §4.4).
+
+    All-or-nothing in one transaction: every id and value is validated
+    before anything is written (one bad id -> 400, nothing changes). The
+    ``state_id`` action goes through the domain ``transition()`` (Issues
+    already in the target State are skipped); the ``archive`` action is
+    owner-only. One Activity row per Issue (per added/removed label for
+    label actions). Bulk is unversioned (no ``updated_at`` echo; ADR 0008).
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user.
+        issue_ids: The Issues to apply the action to (same Team).
+        action: The single action to apply (validated in the domain layer).
+
+    Returns:
+        The Team and the updated Issues (State/assignee/labels eager-loaded),
+        ordered by number.
+
+    Raises:
+        NotFoundError: If any Issue's Team is not visible to the actor
+            (non-members get 404, not 403).
+        ForbiddenError: If the Team is archived, or the actor is not a Team
+            owner (or Admin) and the action is archiving.
+        ValidationError: If an id is unknown, the Issues span Teams, an
+            Issue is archived, or the action's value is invalid.
+
+    """
+    async with session.begin():
+        actor = await load_actor(session, user)
+        unique_ids = list(dict.fromkeys(issue_ids))
+        team, issues = await _validate_bulk_targets(session, actor=actor, unique_ids=unique_ids)
+        if action.archive and not can(actor, Action.ISSUE_ARCHIVE, TeamResource(team.id)):
+            raise ForbiddenError(MSG_ARCHIVE_OWNER_ONLY)
+        context = await _build_bulk_context(session, team=team, issues=issues, action=action)
+        ordered = sorted(issues, key=lambda item: item.number)
+        for issue in ordered:
+            await _apply_bulk_action_to_issue(
+                session,
+                issue=issue,
+                actor_id=actor.user_id,
+                action=action,
+                context=context,
+            )
+        await session.flush()
+        for issue in ordered:
+            await session.refresh(issue, REFRESH_ATTRIBUTES)
+        return team, ordered
+
+
+@dataclass(frozen=True)
+class _BulkContext:
+    """The shared, pre-validated values of one bulk operation."""
+
+    state: WorkflowState | None
+    assignee: User | None
+    add_labels: list[Label]
+    remove_labels: list[Label]
+    now: datetime
+
+
+async def _validate_bulk_targets(
+    session: AsyncSession, *, actor: Actor, unique_ids: list[uuid.UUID]
+) -> tuple[Team, list[Issue]]:
+    """Load and validate the bulk target Issues (row-locked, all-or-nothing).
+
+    Args:
+        session: The database session (inside the caller's transaction).
+        actor: The acting user.
+        unique_ids: The deduplicated Issue ids.
+
+    Returns:
+        The shared Team and the locked Issues (State/assignee/labels
+        eager-loaded).
+
+    Raises:
+        NotFoundError: If any Issue's Team is not visible to the actor
+            (non-members get 404, not 403).
+        ValidationError: If an id is unknown, the Issues span Teams, or an
+            Issue is already archived.
+        ForbiddenError: If the Team is archived.
+
+    """
+    issues = list(
+        (
+            await session.exec(
+                select(Issue)
+                .where(Issue.id.in_(unique_ids))  # type: ignore[attr-defined]
+                .options(
+                    joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
+                    joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
+                    selectinload(Issue.labels),  # type: ignore[arg-type,attr-defined]  # M2M: selectinload avoids row duplication
+                )
+                .with_for_update(of=Issue)
+            )
+        ).all()
+    )
+    team_ids = {issue.team_id for issue in issues}
+    for team_id in team_ids:
+        if not can(actor, Action.TEAM_VIEW, TeamResource(team_id)):
+            raise NotFoundError(MSG_ISSUE_NOT_FOUND)
+    if len(issues) != len(unique_ids):
+        raise ValidationError(MSG_BULK_ISSUES_NOT_FOUND)
+    if len(team_ids) > 1:
+        raise ValidationError(MSG_BULK_SAME_TEAM)
+    team = (await session.exec(select(Team).where(Team.id == next(iter(team_ids))))).one()
+    if team.archived_at is not None:
+        raise ForbiddenError(MSG_TEAM_ARCHIVED)
+    if any(issue.archived_at is not None for issue in issues):
+        raise ValidationError(MSG_BULK_ARCHIVED)
+    return team, issues
+
+
+async def _build_bulk_context(
+    session: AsyncSession, *, team: Team, issues: list[Issue], action: BulkAction
+) -> _BulkContext:
+    """Validate the bulk action's target values (State, assignee, Labels)."""
+    now = datetime.now(UTC)
+    state = (
+        await _ensure_state_in_team(session, team, action.state_id)
+        if action.state_id is not None
+        else None
+    )
+    assignee = (
+        await _ensure_assignee_member(session, issues[0], action.assignee_id)
+        if action.assignee_id is not None
+        else None
+    )
+    add_labels = (
+        await _ensure_labels(session, issues[0], list(action.add_label_ids))
+        if action.add_label_ids
+        else []
+    )
+    remove_labels = (
+        await _ensure_labels(session, issues[0], list(action.remove_label_ids))
+        if action.remove_label_ids
+        else []
+    )
+    return _BulkContext(
+        state=state,
+        assignee=assignee,
+        add_labels=add_labels,
+        remove_labels=remove_labels,
+        now=now,
+    )
+
+
+async def _apply_bulk_action_to_issue(
+    session: AsyncSession,
+    *,
+    issue: Issue,
+    actor_id: uuid.UUID,
+    action: BulkAction,
+    context: _BulkContext,
+) -> None:
+    """Apply the bulk action to one Issue (one Activity row per change).
+
+    State changes go through the domain ``transition()`` (Issues already in
+    the target State are skipped); archiving stamps ``archived_at``.
+    """
+    state, assignee, now = context.state, context.assignee, context.now
+    if state is not None and issue.state_id != state.id:
+        effect = transition(_to_rule(state), now)
+        issue.state_id = state.id
+        issue.completed_at = effect.completed_at
+        issue.canceled_at = effect.canceled_at
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor_id,
+                kind=ACTIVITY_ISSUE_STATE_CHANGED,
+                field="state_id",
+                from_value=issue.state.name,
+                to_value=state.name,
+            ),
+        )
+    if assignee is not None and issue.assignee_id != assignee.id:
+        from_name = issue.assignee.display_name if issue.assignee else None
+        issue.assignee_id = assignee.id
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="assignee_id",
+                from_value=from_name,
+                to_value=assignee.display_name,
+            ),
+        )
+    if context.add_labels:
+        current_ids = {label.id for label in issue.labels}
+        for label in sorted(
+            (item for item in context.add_labels if item.id not in current_ids),
+            key=lambda item: item.name,
+        ):
+            issue.labels.append(label)
+            record_activity(
+                session,
+                Activity(
+                    issue_id=issue.id,
+                    actor_id=actor_id,
+                    kind=ACTIVITY_ISSUE_UPDATED,
+                    field="label_id",
+                    to_value=label.name,
+                ),
+            )
+    if context.remove_labels:
+        remove_ids = {label.id for label in context.remove_labels}
+        removed = sorted(
+            (label for label in issue.labels if label.id in remove_ids),
+            key=lambda label: label.name,
+        )
+        issue.labels = [label for label in issue.labels if label.id not in remove_ids]
+        for label in removed:
+            record_activity(
+                session,
+                Activity(
+                    issue_id=issue.id,
+                    actor_id=actor_id,
+                    kind=ACTIVITY_ISSUE_UPDATED,
+                    field="label_id",
+                    from_value=label.name,
+                ),
+            )
+    if action.archive:
+        issue.archived_at = now
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="archived_at",
+                to_value=now.isoformat(),
+            ),
+        )
+
+
+async def _ensure_state_in_team(
+    session: AsyncSession, team: Team, state_id: uuid.UUID
+) -> WorkflowState:
+    """Load the target State; it must belong to the Team's Workflow."""
+    workflow = (await session.exec(select(Workflow).where(Workflow.team_id == team.id))).one()
+    state = (
+        await session.exec(
+            select(WorkflowState).where(
+                WorkflowState.id == state_id,
+                WorkflowState.workflow_id == workflow.id,
+            )
+        )
+    ).one_or_none()
+    if state is None:
+        raise ValidationError(MSG_STATE_NOT_IN_TEAM)
+    return state

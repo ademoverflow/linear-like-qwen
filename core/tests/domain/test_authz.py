@@ -53,3 +53,31 @@ def test_team_actions_require_membership() -> None:
 def test_actions_without_resource_are_denied_for_non_admins() -> None:
     """Team-scoped checks need a resource; without one, non-Admins are denied."""
     assert can(_actor(roles={TEAM_A: Role.OWNER}), Action.TEAM_VIEW, None) is False
+
+
+def test_owner_only_actions_require_owner_role() -> None:
+    """Label management and Issue archiving need the owner role (brief §5.2).
+
+    Members are denied, owners and Admins pass; outsiders are denied.
+    """
+    owner = _actor(roles={TEAM_A: Role.OWNER})
+    member = _actor(roles={TEAM_A: Role.MEMBER})
+    outsider = _actor(roles={TEAM_B: Role.OWNER})
+
+    for action in (
+        Action.LABEL_CREATE,
+        Action.LABEL_EDIT,
+        Action.LABEL_DELETE,
+        Action.ISSUE_ARCHIVE,
+    ):
+        assert can(owner, action, TeamResource(TEAM_A))
+        assert can(_actor(is_admin=True), action, TeamResource(TEAM_A))
+        assert can(member, action, TeamResource(TEAM_A)) is False
+        assert can(outsider, action, TeamResource(TEAM_A)) is False
+
+
+def test_label_view_is_member_scoped() -> None:
+    """Listing a Team's Labels only needs a Membership."""
+    member = _actor(roles={TEAM_A: Role.MEMBER})
+    assert can(member, Action.LABEL_VIEW, TeamResource(TEAM_A))
+    assert can(_actor(roles={TEAM_B: Role.OWNER}), Action.LABEL_VIEW, TeamResource(TEAM_A)) is False

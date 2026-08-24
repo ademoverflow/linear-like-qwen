@@ -3,11 +3,12 @@ import { ApiError } from "@/api/client";
 import {
 	type Issue,
 	type IssueDetail,
+	type IssueListPage,
 	type IssueUpdateInput,
 	updateIssue,
 } from "@/api/issues";
 import { queryKeys } from "@/api/query-keys";
-import type { TeamMember } from "@/api/teams";
+import type { Label, TeamMember } from "@/api/teams";
 import { toast } from "@/components/ui/Toast";
 
 function applyPatchToIssue(
@@ -15,6 +16,7 @@ function applyPatchToIssue(
 	input: IssueUpdateInput,
 	members: TeamMember[] | undefined,
 	allIssues: Issue[] | undefined,
+	labels: Label[] | undefined,
 ): Issue {
 	// Placeholder timestamp; the refetch after success replaces it with the
 	// authoritative server value (written into the cache on success).
@@ -42,6 +44,16 @@ function applyPatchToIssue(
 		next.due_date = input.due_date ? new Date(input.due_date) : null;
 	}
 	if (input.estimate !== undefined) next.estimate = input.estimate;
+	if (input.label_ids !== undefined) {
+		// Full-set replace: resolve the names/colours from the Team's
+		// Labels (falling back to the Issue's current ones).
+		const byId = new Map((labels ?? []).map((label) => [label.id, label]));
+		const ids = input.label_ids ?? [];
+		next.labels = ids
+			.map((id) => byId.get(id) ?? issue.labels.find((l) => l.id === id))
+			.filter((label): label is Issue["labels"][number] => label !== undefined)
+			.map((label) => ({ id: label.id, name: label.name, color: label.color }));
+	}
 	return next;
 }
 
@@ -67,13 +79,25 @@ export function useUpdateIssue(teamId: string, issueId: string) {
 			const previousList = queryClient.getQueryData<Issue[]>(
 				queryKeys.issues.team(teamId),
 			);
+			const previousPages = queryClient.getQueriesData<IssueListPage>({
+				queryKey: ["issues", "page", teamId],
+			});
 			const members = queryClient.getQueryData<TeamMember[]>(
 				queryKeys.teams.members(teamId),
+			);
+			const labels = queryClient.getQueryData<Label[]>(
+				queryKeys.teams.labels(teamId),
 			);
 			if (previousDetail) {
 				queryClient.setQueryData<IssueDetail>(
 					queryKeys.issues.detail(issueId),
-					applyPatchToIssue(previousDetail, input, members, previousList),
+					applyPatchToIssue(
+						previousDetail,
+						input,
+						members,
+						previousList,
+						labels,
+					),
 				);
 			}
 			if (previousList) {
@@ -81,12 +105,32 @@ export function useUpdateIssue(teamId: string, issueId: string) {
 					queryKeys.issues.team(teamId),
 					previousList.map((issue) =>
 						issue.id === issueId
-							? applyPatchToIssue(issue, input, members, previousList)
+							? applyPatchToIssue(issue, input, members, previousList, labels)
 							: issue,
 					),
 				);
 			}
-			return { previousDetail, previousList };
+			queryClient.setQueriesData<IssueListPage>(
+				{ queryKey: ["issues", "page", teamId] },
+				(page) =>
+					page
+						? {
+								...page,
+								issues: page.issues.map((issue) =>
+									issue.id === issueId
+										? applyPatchToIssue(
+												issue,
+												input,
+												members,
+												previousList,
+												labels,
+											)
+										: issue,
+								),
+							}
+						: page,
+			);
+			return { previousDetail, previousList, previousPages };
 		},
 		onError: (error, _input, context) => {
 			if (context?.previousDetail) {
@@ -101,12 +145,18 @@ export function useUpdateIssue(teamId: string, issueId: string) {
 					context.previousList,
 				);
 			}
+			for (const [key, data] of context?.previousPages ?? []) {
+				if (data) queryClient.setQueryData(key, data);
+			}
 			if (error instanceof ApiError && error.status === 409) {
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.detail(issueId),
 				});
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.team(teamId),
+				});
+				void queryClient.invalidateQueries({
+					queryKey: ["issues", "page", teamId],
 				});
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.activity(issueId),
@@ -138,6 +188,18 @@ export function useUpdateIssue(teamId: string, issueId: string) {
 					cached
 						? cached.map((issue) => (issue.id === issueId ? data : issue))
 						: cached,
+			);
+			queryClient.setQueriesData<IssueListPage>(
+				{ queryKey: ["issues", "page", teamId] },
+				(page) =>
+					page
+						? {
+								...page,
+								issues: page.issues.map((issue) =>
+									issue.id === issueId ? data : issue,
+								),
+							}
+						: page,
 			);
 			void queryClient.invalidateQueries({
 				queryKey: queryKeys.issues.activity(issueId),

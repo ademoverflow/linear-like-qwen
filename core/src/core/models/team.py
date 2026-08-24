@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from core.models.issue import Issue
+    from core.models.label import Label
     from core.models.membership import Membership
     from core.models.workflow import Workflow
 
@@ -60,3 +61,4 @@ class Team(SQLModel, table=True):
     )
     issues: list["Issue"] = Relationship(back_populates="team")
     memberships: list["Membership"] = Relationship(back_populates="team")
+    labels: list["Label"] = Relationship(back_populates="team")

@@ -83,12 +83,14 @@ def test_invalid_title_rejected(client: TestClient) -> None:
 
 
 def test_list_issues_returns_newest_first(client: TestClient) -> None:
-    """The list is ordered by Issue number, newest first."""
+    """The list is an envelope, newest first (created:desc, tie-break number desc)."""
     register_admin(client)
     team = _create_team(client)
     for i in (1, 2, 3):
         client.post(API, json={"team_id": team["id"], "title": f"Issue {i}"})
-    issues = client.get(API, params={"team_id": team["id"]}).json()
+    body = client.get(API, params={"team_id": team["id"]}).json()
+    assert body["next_cursor"] is None
+    issues = body["issues"]
     assert [i["number"] for i in issues] == [3, 2, 1]
     assert [i["identifier"] for i in issues] == ["ENG-3", "ENG-2", "ENG-1"]
 

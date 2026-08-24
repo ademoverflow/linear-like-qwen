@@ -23,6 +23,7 @@ vi.mock("@/api/teams", async (importOriginal) => {
 		createTeam: vi.fn(),
 		listTeamMembers: vi.fn(),
 		listTeamStates: vi.fn(),
+		listTeamLabels: vi.fn(),
 	};
 });
 
@@ -31,6 +32,7 @@ vi.mock("@/api/issues", async (importOriginal) => {
 	return {
 		...actual,
 		listIssues: vi.fn(),
+		listAllIssues: vi.fn(),
 		createIssue: vi.fn(),
 		getIssue: vi.fn(),
 		updateIssue: vi.fn(),
@@ -40,13 +42,12 @@ vi.mock("@/api/issues", async (importOriginal) => {
 });
 
 const { getMe } = await import("@/api/auth");
-const { listTeamMembers, listTeamStates, listTeams } = await import(
-	"@/api/teams"
-);
+const { listTeamLabels, listTeamMembers, listTeamStates, listTeams } =
+	await import("@/api/teams");
 const {
 	getIssue,
+	listAllIssues,
 	listIssueActivity,
-	listIssues,
 	transitionIssue,
 	updateIssue,
 } = await import("@/api/issues");
@@ -56,6 +57,8 @@ const {
 	doneStateId,
 	issueDetailFixture,
 	issueFixture,
+	labelFixture,
+	labelsFixture,
 	memberFixture,
 	meFixture,
 	statesFixture,
@@ -65,11 +68,12 @@ const {
 function mockCommon() {
 	vi.mocked(getMe).mockResolvedValue(meFixture);
 	vi.mocked(listTeams).mockResolvedValue([teamFixture]);
-	vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+	vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 	vi.mocked(listTeamMembers).mockResolvedValue([memberFixture]);
 	vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
 	vi.mocked(listIssueActivity).mockResolvedValue(activityFixture);
 	vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
+	vi.mocked(listTeamLabels).mockResolvedValue([]);
 }
 
 describe("IssueDetail", () => {
@@ -87,7 +91,8 @@ describe("IssueDetail", () => {
 		).toBeTruthy();
 		expect(screen.getByText("No priority")).toBeTruthy();
 		expect(screen.getByText("Unassigned")).toBeTruthy();
-		expect(screen.getByText("No labels yet")).toBeTruthy();
+		// The Labels property is a picker; the fixture Issue has no labels.
+		expect(screen.getByText("No labels")).toBeTruthy();
 	});
 
 	it("shows the Activity feed chronologically", async () => {
@@ -120,6 +125,35 @@ describe("IssueDetail", () => {
 			expect(updateIssue).toHaveBeenCalledWith(issueFixture.id, {
 				updated_at: issueDetailFixture.updated_at,
 				title: "New title",
+			}),
+		);
+	});
+
+	it("applies Labels through the picker with the last-seen updated_at", async () => {
+		mockCommon();
+		vi.mocked(listTeamLabels).mockResolvedValue(labelsFixture);
+		vi.mocked(updateIssue).mockResolvedValue({
+			...issueFixture,
+			labels: [
+				{
+					id: labelFixture.id,
+					name: labelFixture.name,
+					color: labelFixture.color,
+				},
+			],
+		});
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const labelsButton = await screen.findByRole("button", {
+			name: "Change labels",
+		});
+		fireEvent.click(labelsButton);
+		await screen.findByRole("dialog", { name: "Labels" });
+		fireEvent.click(screen.getByRole("checkbox", { name: "bug" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(updateIssue).toHaveBeenCalledWith(issueFixture.id, {
+				updated_at: issueDetailFixture.updated_at,
+				label_ids: [labelFixture.id],
 			}),
 		);
 	});

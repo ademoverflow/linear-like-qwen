@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { listIssues } from "@/api/issues";
+import { listAllIssues } from "@/api/issues";
 import { queryKeys } from "@/api/query-keys";
 import { listTeamStates, listTeams } from "@/api/teams";
 import { Board } from "@/components/issues/Board";
@@ -31,7 +31,7 @@ export function TeamBoard() {
 	});
 	const issuesQuery = useQuery({
 		queryKey: queryKeys.issues.team(team?.id ?? ""),
-		queryFn: () => (team ? listIssues(team.id) : Promise.resolve([])),
+		queryFn: () => (team ? listAllIssues(team.id) : Promise.resolve([])),
 		enabled: team !== undefined,
 	});
 

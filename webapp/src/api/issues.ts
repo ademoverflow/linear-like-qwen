@@ -1,6 +1,16 @@
 import { z } from "zod";
 
 import { api } from "./client";
+import { labelSchema } from "./teams";
+
+/** A Label attached to an Issue (embedded, no Team/timestamps). */
+export const issueLabelSchema = labelSchema.pick({
+	id: true,
+	name: true,
+	color: true,
+});
+
+export type IssueLabel = z.infer<typeof issueLabelSchema>;
 
 export const issueSchema = z.object({
 	id: z.string().uuid(),
@@ -31,6 +41,7 @@ export const issueSchema = z.object({
 	canceled_at: z.coerce.date().nullish(),
 	archived_at: z.coerce.date().nullish(),
 	created_at: z.coerce.date(),
+	labels: z.array(issueLabelSchema),
 	// Raw server string on purpose: PATCH must echo the exact timestamptz
 	// value (ADR 0008) and a JS Date would truncate microseconds.
 	updated_at: z.string(),
@@ -58,9 +69,59 @@ export const activitySchema = z.object({
 
 export type Activity = z.infer<typeof activitySchema>;
 
-export async function listIssues(teamId: string): Promise<Issue[]> {
-	const data = await api.get("/issues", { query: { team_id: teamId } });
-	return z.array(issueSchema).parse(data);
+export interface IssueListParams {
+	state_ids?: string[];
+	assignee_ids?: string[];
+	label_ids?: string[];
+	priority?: string[];
+	sort?: string;
+	limit?: number;
+	cursor?: string;
+}
+
+export const issueListSchema = z.object({
+	issues: z.array(issueSchema),
+	next_cursor: z.string().nullish(),
+});
+
+export type IssueListPage = z.infer<typeof issueListSchema>;
+
+export async function listIssues(
+	teamId: string,
+	params: IssueListParams = {},
+): Promise<IssueListPage> {
+	const query: Record<string, string | number | string[]> = {
+		team_id: teamId,
+	};
+	if (params.state_ids?.length) query.state_id = params.state_ids;
+	if (params.assignee_ids?.length) query.assignee_id = params.assignee_ids;
+	if (params.label_ids?.length) query.label_id = params.label_ids;
+	if (params.priority?.length) query.priority = params.priority;
+	if (params.sort) query.sort = params.sort;
+	if (params.limit) query.limit = params.limit;
+	if (params.cursor) query.cursor = params.cursor;
+	const data = await api.get("/issues", { query });
+	return issueListSchema.parse(data);
+}
+
+/**
+ * Fetch a Team's full Issue set by paging through the list endpoint
+ * (limit 200 per page) until there is no next cursor. Used by the Board
+ * and the Issue-detail sidebar, which need every Issue at once.
+ */
+export async function listAllIssues(teamId: string): Promise<Issue[]> {
+	const issues: Issue[] = [];
+	let cursor: string | null = null;
+	for (;;) {
+		const page = await listIssues(teamId, {
+			limit: 200,
+			cursor: cursor ?? undefined,
+		});
+		issues.push(...page.issues);
+		cursor = page.next_cursor ?? null;
+		if (!cursor) break;
+	}
+	return issues;
 }
 
 export async function getIssue(issueId: string): Promise<IssueDetail> {
@@ -77,6 +138,7 @@ export interface IssueUpdateInput {
 	parent_id?: string | null;
 	due_date?: string | null;
 	estimate?: number | null;
+	label_ids?: string[];
 }
 
 export async function updateIssue(
@@ -112,4 +174,22 @@ export async function createIssue(input: {
 }): Promise<Issue> {
 	const data = await api.post("/issues", input);
 	return issueSchema.parse(data);
+}
+
+export interface IssueBulkInput {
+	issue_ids: string[];
+	state_id?: string | null;
+	assignee_id?: string | null;
+	archive?: boolean;
+}
+
+export const issueBulkResponseSchema = z.object({
+	issues: z.array(issueSchema),
+});
+
+export async function bulkUpdateIssues(
+	input: IssueBulkInput,
+): Promise<Issue[]> {
+	const data = await api.post("/issues/bulk", input);
+	return issueBulkResponseSchema.parse(data).issues;
 }

@@ -50,6 +50,7 @@ vi.mock("@/api/issues", async (importOriginal) => {
 	return {
 		...actual,
 		listIssues: vi.fn(),
+		listAllIssues: vi.fn(),
 		createIssue: vi.fn(),
 		getIssue: vi.fn(),
 		transitionIssue: vi.fn(),
@@ -59,7 +60,7 @@ vi.mock("@/api/issues", async (importOriginal) => {
 
 const { getMe } = await import("@/api/auth");
 const { listTeamStates, listTeams } = await import("@/api/teams");
-const { getIssue, listIssueActivity, listIssues, transitionIssue } =
+const { getIssue, listAllIssues, listIssueActivity, transitionIssue } =
 	await import("@/api/issues");
 const { renderAt } = await import("../test/test-router");
 const {
@@ -105,7 +106,7 @@ function DetailObserver() {
 function ListObserver() {
 	useQuery({
 		queryKey: queryKeys.issues.team(testTeamId),
-		queryFn: () => listIssues(testTeamId),
+		queryFn: () => listAllIssues(testTeamId),
 	});
 	return null;
 }
@@ -164,7 +165,10 @@ describe("TeamBoard", () => {
 		vi.mocked(getMe).mockResolvedValue(meFixture);
 		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
 		vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture, doneIssueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([
+			issueFixture,
+			doneIssueFixture,
+		]);
 		renderAt("/teams/ENG/board");
 		await screen.findByText("Second Issue");
 
@@ -191,7 +195,7 @@ describe("TeamBoard", () => {
 		vi.mocked(getMe).mockResolvedValue(meFixture);
 		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
 		vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 		renderAt("/teams/ENG/board");
 		await screen.findByText("Set up the core loop");
 
@@ -209,7 +213,7 @@ describe("TeamBoard", () => {
 		vi.mocked(getMe).mockResolvedValue(meFixture);
 		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
 		vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 		renderAt("/teams/ENG/board");
 		await screen.findByText("Set up the core loop");
 		expect(screen.getByRole("link", { name: "Board" })).toBeTruthy();
@@ -219,7 +223,7 @@ describe("TeamBoard", () => {
 		vi.mocked(getMe).mockResolvedValue(meFixture);
 		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
 		vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
-		vi.mocked(listIssues).mockResolvedValue([]);
+		vi.mocked(listAllIssues).mockResolvedValue([]);
 		renderAt("/teams/ENG/board");
 		expect(await screen.findByText("No Issues yet")).toBeTruthy();
 	});
@@ -253,7 +257,7 @@ describe("useTransitionIssue (board drop seam)", () => {
 			updated_at: "2026-08-24T10:00:00.000001+00:00",
 		});
 		vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 		vi.mocked(listIssueActivity).mockResolvedValue([]);
 		const { queryClient } = renderHarness();
 		fireEvent.click(screen.getByRole("button", { name: "Move to Done" }));
@@ -285,7 +289,7 @@ describe("useTransitionIssue (board drop seam)", () => {
 			updated_at: "2026-08-24T10:00:00.000001+00:00",
 		});
 		vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 		vi.mocked(listIssueActivity).mockResolvedValue([]);
 		const { queryClient } = renderHarness();
 		fireEvent.click(screen.getByRole("button", { name: "Move to Done" }));
@@ -324,7 +328,7 @@ describe("useTransitionIssue (board drop seam)", () => {
 			}),
 		);
 		vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
-		vi.mocked(listIssues).mockResolvedValue([issueFixture]);
+		vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 		vi.mocked(listIssueActivity).mockResolvedValue([]);
 		renderHarness();
 		fireEvent.click(screen.getByRole("button", { name: "Move to Done" }));
@@ -336,7 +340,7 @@ describe("useTransitionIssue (board drop seam)", () => {
 		);
 		// Each observed query was fetched on mount and refetched after the 409.
 		await waitFor(() => expect(getIssue).toHaveBeenCalledTimes(2));
-		await waitFor(() => expect(listIssues).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(listAllIssues).toHaveBeenCalledTimes(2));
 		await waitFor(() => expect(listIssueActivity).toHaveBeenCalledTimes(2));
 	});
 });

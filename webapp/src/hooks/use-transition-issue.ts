@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
-import { type Issue, type IssueDetail, transitionIssue } from "@/api/issues";
+import {
+	type Issue,
+	type IssueDetail,
+	type IssueListPage,
+	transitionIssue,
+} from "@/api/issues";
 import { queryKeys } from "@/api/query-keys";
 import type { WorkflowState } from "@/api/teams";
 import { toast } from "@/components/ui/Toast";
@@ -64,6 +69,9 @@ export function useTransitionIssue(teamId: string) {
 			const previousList = queryClient.getQueryData<Issue[]>(
 				queryKeys.issues.team(teamId),
 			);
+			const previousPages = queryClient.getQueriesData<IssueListPage>({
+				queryKey: ["issues", "page", teamId],
+			});
 			const states = queryClient.getQueryData<WorkflowState[]>(
 				queryKeys.teams.states(teamId),
 			);
@@ -83,7 +91,21 @@ export function useTransitionIssue(teamId: string) {
 					),
 				);
 			}
-			return { issueId, previousDetail, previousList };
+			queryClient.setQueriesData<IssueListPage>(
+				{ queryKey: ["issues", "page", teamId] },
+				(page) =>
+					page
+						? {
+								...page,
+								issues: page.issues.map((issue) =>
+									issue.id === issueId
+										? applyTransitionToIssue(issue, input.state_id, states)
+										: issue,
+								),
+							}
+						: page,
+			);
+			return { issueId, previousDetail, previousList, previousPages };
 		},
 		onError: (error, _input, context) => {
 			if (context?.previousDetail) {
@@ -98,12 +120,18 @@ export function useTransitionIssue(teamId: string) {
 					context.previousList,
 				);
 			}
+			for (const [key, data] of context?.previousPages ?? []) {
+				if (data) queryClient.setQueryData(key, data);
+			}
 			if (error instanceof ApiError && error.status === 409) {
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.detail(context?.issueId ?? ""),
 				});
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.team(teamId),
+				});
+				void queryClient.invalidateQueries({
+					queryKey: ["issues", "page", teamId],
 				});
 				void queryClient.invalidateQueries({
 					queryKey: queryKeys.issues.activity(context?.issueId ?? ""),
@@ -137,6 +165,18 @@ export function useTransitionIssue(teamId: string) {
 								issue.id === input.issue_id ? data : issue,
 							)
 						: cached,
+			);
+			queryClient.setQueriesData<IssueListPage>(
+				{ queryKey: ["issues", "page", teamId] },
+				(page) =>
+					page
+						? {
+								...page,
+								issues: page.issues.map((issue) =>
+									issue.id === input.issue_id ? data : issue,
+								),
+							}
+						: page,
 			);
 			void queryClient.invalidateQueries({
 				queryKey: queryKeys.issues.activity(input.issue_id),

@@ -404,3 +404,134 @@ def test_team_members_endpoint(client: TestClient, pg: pg_connection, make_user:
     outsider = make_user(email="outsider@example.com")
     other = login_as(client, outsider)
     assert other.get(MEMBERS.format(team_id=team["id"])).status_code == 404
+
+
+def _create_label(client: TestClient, team_id: str, name: str) -> dict:
+    response = client.post(
+        f"/api/v1/teams/{team_id}/labels", json={"name": name, "color": "#111111"}
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_patch_label_ids_adds_and_removes_with_activity(
+    client: TestClient, pg: pg_connection
+) -> None:
+    """label_ids is a full-set replace; one Activity row per added/removed label."""
+    register_admin(client)
+    team = _create_team(client)
+    label_a = _create_label(client, team["id"], "beta")
+    label_b = _create_label(client, team["id"], "alpha")
+    issue = _create_issue(client, team["id"])
+
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": [label_a["id"], label_b["id"]]},
+    )
+    assert response.status_code == 200
+    assert sorted(label["name"] for label in response.json()["labels"]) == ["alpha", "beta"]
+    with pg.cursor() as cur:
+        cur.execute(
+            "SELECT field, from_value, to_value FROM activity "
+            "WHERE issue_id = %s AND kind = 'issue.updated' ORDER BY seq",
+            (issue["id"],),
+        )
+        rows = cur.fetchall()
+    # Added rows first, name-ordered.
+    assert rows == [("label_id", None, "alpha"), ("label_id", None, "beta")]
+
+    issue = response.json()
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": [label_b["id"]]},
+    )
+    assert [label["name"] for label in response.json()["labels"]] == ["alpha"]
+    with pg.cursor() as cur:
+        cur.execute(
+            "SELECT from_value, to_value FROM activity "
+            "WHERE issue_id = %s AND field = 'label_id' AND from_value IS NOT NULL "
+            "ORDER BY seq",
+            (issue["id"],),
+        )
+        rows = cur.fetchall()
+    assert rows == [("beta", None)]
+
+    # An empty list clears all Labels (with one removal row).
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": []},
+    )
+    assert response.json()["labels"] == []
+
+    # Re-sending the same set is a no-op (no new Activity rows).
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": response.json()["updated_at"], "label_ids": []},
+    )
+    assert response.status_code == 200
+    with pg.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) FROM activity WHERE issue_id = %s AND field = 'label_id'",
+            (issue["id"],),
+        )
+        row = cur.fetchone()
+    assert row is not None
+    assert row[0] == 4
+
+
+def test_patch_label_of_other_team_is_400(client: TestClient) -> None:
+    """A Label from another Team is rejected (400) and nothing changes."""
+    register_admin(client)
+    team_a = _create_team(client)
+    team_b = client.post("/api/v1/teams", json={"name": "Design", "key": "DSGN"}).json()
+    other_label = _create_label(client, team_b["id"], "x")
+    issue = _create_issue(client, team_a["id"])
+
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": [other_label["id"]]},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert client.get(f"{API}/{issue['id']}").json()["labels"] == []
+
+
+def test_patch_unknown_label_is_400(client: TestClient) -> None:
+    """An unknown Label id is rejected (400)."""
+    register_admin(client)
+    team = _create_team(client)
+    issue = _create_issue(client, team["id"])
+
+    response = client.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": [str(uuid.uuid4())]},
+    )
+    assert response.status_code == 400
+    assert client.get(f"{API}/{issue['id']}").json()["labels"] == []
+
+
+def test_member_can_set_label_ids(
+    client: TestClient, pg: pg_connection, make_user: MakeUser
+) -> None:
+    """A plain Team member (non-Admin) can add and remove Labels on an Issue."""
+    register_admin(client)
+    team = _create_team(client)
+    member = make_user(email="member@example.com")
+    _add_member(pg, team["id"], str(member.id))
+    label = _create_label(client, team["id"], "bug")
+    issue = _create_issue(client, team["id"])
+    other = login_as(client, member)
+
+    response = other.patch(
+        f"{API}/{issue['id']}",
+        json={"updated_at": issue["updated_at"], "label_ids": [label["id"]]},
+    )
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["labels"]] == ["bug"]
+    with pg.cursor() as cur:
+        cur.execute(
+            "SELECT field, to_value FROM activity WHERE issue_id = %s AND field = %s",
+            (issue["id"], "label_id"),
+        )
+        rows = cur.fetchall()
+    assert rows == [("label_id", "bug")]

@@ -6,6 +6,7 @@ from sqlalchemy import UUID, Column, Date, DateTime, Integer, Text, text
 from sqlmodel import Field, Index, Relationship, SQLModel
 
 if TYPE_CHECKING:
+    from core.models.label import Label
     from core.models.team import Team
     from core.models.user import User
     from core.models.workflow_state import WorkflowState
@@ -79,4 +80,11 @@ class Issue(SQLModel, table=True):
     )
     creator: "User" = Relationship(
         sa_relationship_kwargs={"primaryjoin": "Issue.creator_id == User.id"}
+    )
+    labels: list["Label"] = Relationship(
+        sa_relationship_kwargs={
+            "secondary": "issue_labels",
+            "primaryjoin": "Issue.id == IssueLabel.issue_id",
+            "secondaryjoin": "Label.id == IssueLabel.label_id",
+        }
     )

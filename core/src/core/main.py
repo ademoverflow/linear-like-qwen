@@ -14,6 +14,7 @@ from core.routers import (
     health_router,
     invitations_router,
     issues_router,
+    labels_router,
     teams_router,
     users_router,
 )
@@ -70,6 +71,7 @@ api_router = APIRouter(prefix=API_PREFIX)
 api_router.include_router(auth_router)
 api_router.include_router(teams_router)
 api_router.include_router(issues_router)
+api_router.include_router(labels_router)
 api_router.include_router(invitations_router)
 api_router.include_router(users_router)
 app.include_router(api_router)

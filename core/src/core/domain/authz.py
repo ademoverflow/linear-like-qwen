@@ -32,6 +32,11 @@ class Action(StrEnum):
     USER_REACTIVATE = "user.reactivate"
     USER_PROMOTE = "user.promote"
     USER_DEMOTE = "user.demote"
+    LABEL_VIEW = "label.view"
+    LABEL_CREATE = "label.create"
+    LABEL_EDIT = "label.edit"
+    LABEL_DELETE = "label.delete"
+    ISSUE_ARCHIVE = "issue.archive"
 
 
 @dataclass(frozen=True)
@@ -59,13 +64,20 @@ class IssueResource:
 
 Resource = TeamResource | IssueResource | None
 
+# Team actions that require the owner role (brief §5.2; workspace Admins
+# bypass the check, as always).
+OWNER_ONLY_ACTIONS: frozenset[Action] = frozenset(
+    {Action.LABEL_CREATE, Action.LABEL_EDIT, Action.LABEL_DELETE, Action.ISSUE_ARCHIVE}
+)
+
 
 def can(actor: Actor, action: Action, resource: Resource) -> bool:
     """Decide whether ``actor`` may perform ``action`` on ``resource``.
 
     Workspace Admins may do everything in v1 (brief §5.2). Team-scoped actions
     require a Membership on the Team the resource belongs to; ``TEAM_CREATE``
-    is Admin-only.
+    is Admin-only; the owner-only actions (``OWNER_ONLY_ACTIONS``) require the
+    ``owner`` role.
 
     Args:
         actor: The principal acting.
@@ -82,4 +94,9 @@ def can(actor: Actor, action: Action, resource: Resource) -> bool:
         return False
     if resource is None:
         return False
-    return actor.team_roles.get(resource.team_id) is not None
+    role = actor.team_roles.get(resource.team_id)
+    if role is None:
+        return False
+    if action in OWNER_ONLY_ACTIONS:
+        return role is Role.OWNER
+    return True

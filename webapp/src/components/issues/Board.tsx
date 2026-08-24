@@ -25,6 +25,7 @@ import type { WorkflowState } from "@/api/teams";
 import { Avatar } from "@/components/ui/Avatar";
 import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { PriorityGlyph } from "@/lib/priorities";
+import { LabelChip } from "./LabelChip";
 
 /**
  * Resolve the target State of a drop (board DnD, ticket 04). Dropping on a
@@ -386,6 +387,13 @@ function BoardCard({ issue, teamKey }: { issue: Issue; teamKey: string }) {
 					</span>
 				</div>
 				<p className="mt-1 truncate text-sm font-medium">{issue.title}</p>
+				{issue.labels.length > 0 && (
+					<div className="mt-1.5 flex flex-wrap gap-1">
+						{issue.labels.map((label) => (
+							<LabelChip key={label.id} label={label} compact />
+						))}
+					</div>
+				)}
 				<div className="mt-1.5 flex items-center gap-2">
 					<PriorityGlyph priority={issue.priority} />
 					<span className="flex-1" />

@@ -1,6 +1,6 @@
 import type { Me } from "@/api/auth";
 import type { Activity, Issue, IssueDetail } from "@/api/issues";
-import type { Team, TeamMember, WorkflowState } from "@/api/teams";
+import type { Label, Team, TeamMember, WorkflowState } from "@/api/teams";
 
 const ISO = "2026-08-22T12:00:00.000Z";
 const ISO_RAW = "2026-08-22T12:00:00.123456+00:00";
@@ -69,6 +69,25 @@ export const activityFixture: Activity[] = [
 	},
 ];
 
+export const labelFixture: Label = {
+	id: "77777777-7777-4777-8777-777777777777",
+	team_id: testTeamId,
+	name: "bug",
+	color: "#e5534b",
+	created_at: new Date(ISO),
+	updated_at: new Date(ISO),
+};
+
+export const labelsFixture: Label[] = [
+	labelFixture,
+	{
+		...labelFixture,
+		id: "77777777-7777-4777-8777-777777777778",
+		name: "design",
+		color: "#4cb371",
+	},
+];
+
 export const issueFixture: Issue = {
 	id: testIssueId,
 	team_id: testTeamId,
@@ -92,6 +111,7 @@ export const issueFixture: Issue = {
 	canceled_at: null,
 	archived_at: null,
 	created_at: new Date(ISO),
+	labels: [],
 	updated_at: ISO_RAW,
 };
 

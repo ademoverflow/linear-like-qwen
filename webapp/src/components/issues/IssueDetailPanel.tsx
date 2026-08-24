@@ -1,21 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Issue, IssueDetail, IssueUpdateInput } from "@/api/issues";
-import type { TeamMember, WorkflowState } from "@/api/teams";
+import type { Label, TeamMember, WorkflowState } from "@/api/teams";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { useUpdateIssue } from "@/hooks/use-update-issue";
 import { Markdown } from "@/lib/markdown";
+import { PRIORITY_OPTIONS } from "@/lib/priorities";
 import { ActivityFeed } from "./ActivityFeed";
-
-const PRIORITY_OPTIONS = [
-	{ value: "none", label: "No priority" },
-	{ value: "urgent", label: "Urgent" },
-	{ value: "high", label: "High" },
-	{ value: "medium", label: "Medium" },
-	{ value: "low", label: "Low" },
-];
+import { LabelChip } from "./LabelChip";
 
 const ESTIMATE_OPTIONS = [
 	{ value: "", label: "No estimate" },
@@ -29,7 +24,8 @@ const ESTIMATE_OPTIONS = [
  * The Issue detail panel (brief §7.2.3, ticket 03 + 04): inline-editable
  * title, Markdown description with edit/preview, the properties column and
  * Activity feed. State is a picker on the same transition path as the
- * Board (ticket 04); Labels are a placeholder until ticket 05.
+ * Board (ticket 04); Labels are a picker (ticket 05) that applies the
+ * full set through the same optimistic edit path (ADR 0008).
  */
 export function IssueDetailPanel({
 	issue,
@@ -38,6 +34,7 @@ export function IssueDetailPanel({
 	issues,
 	members,
 	states,
+	labels,
 }: {
 	issue: IssueDetail;
 	teamKey: string;
@@ -45,10 +42,13 @@ export function IssueDetailPanel({
 	issues: Issue[];
 	members: TeamMember[];
 	states: WorkflowState[];
+	labels: Label[];
 }) {
 	const update = useUpdateIssue(teamId, issue.id);
 	const transition = useTransitionIssue(teamId);
 	const dueDateId = useId();
+	const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+	const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
 
 	const patch = useCallback(
 		(fields: Omit<IssueUpdateInput, "updated_at">) => {
@@ -127,10 +127,35 @@ export function IssueDetailPanel({
 					<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
 						Labels
 					</span>
-					<span className="flex h-9 items-center text-sm text-neutral-400">
-						No labels yet
-					</span>
+					<button
+						type="button"
+						aria-label="Change labels"
+						onClick={() => {
+							setSelectedLabelIds(issue.labels.map((label) => label.id));
+							setLabelPickerOpen(true);
+						}}
+						className="flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2 text-sm focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+					>
+						{issue.labels.length === 0 ? (
+							<span className="text-neutral-400">No labels</span>
+						) : (
+							issue.labels.map((label) => (
+								<LabelChip key={label.id} label={label} compact />
+							))
+						)}
+					</button>
 				</div>
+				<LabelPicker
+					open={labelPickerOpen}
+					labels={labels}
+					selectedIds={selectedLabelIds}
+					onSelectedIdsChange={setSelectedLabelIds}
+					onClose={() => setLabelPickerOpen(false)}
+					onSave={() => {
+						patch({ label_ids: selectedLabelIds });
+						setLabelPickerOpen(false);
+					}}
+				/>
 				<Select
 					label="Priority"
 					value={issue.priority}
@@ -189,6 +214,67 @@ export function IssueDetailPanel({
 				<ActivityFeed issueId={issue.id} />
 			</section>
 		</div>
+	);
+}
+
+/**
+ * The Labels picker (ticket 05): a checkbox per Team Label; saving
+ * applies the full set via the optimistic edit path (one Activity row
+ * per added/removed label server-side).
+ */
+function LabelPicker({
+	open,
+	labels,
+	selectedIds,
+	onSelectedIdsChange,
+	onClose,
+	onSave,
+}: {
+	open: boolean;
+	labels: Label[];
+	selectedIds: string[];
+	onSelectedIdsChange: (ids: string[]) => void;
+	onClose: () => void;
+	onSave: () => void;
+}) {
+	const toggle = (id: string) => {
+		onSelectedIdsChange(
+			selectedIds.includes(id)
+				? selectedIds.filter((item) => item !== id)
+				: [...selectedIds, id],
+		);
+	};
+	return (
+		<Dialog open={open} title="Labels" onClose={onClose}>
+			{labels.length === 0 ? (
+				<p className="text-sm text-neutral-500">This Team has no Labels yet.</p>
+			) : (
+				<div className="flex flex-col gap-1.5">
+					{labels.map((label) => (
+						<label
+							key={label.id}
+							className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300"
+						>
+							<input
+								type="checkbox"
+								name="issue label"
+								value={label.id}
+								checked={selectedIds.includes(label.id)}
+								onChange={() => toggle(label.id)}
+								className="h-4 w-4 accent-accent"
+							/>
+							<LabelChip label={label} />
+						</label>
+					))}
+				</div>
+			)}
+			<div className="mt-4 flex justify-end gap-2">
+				<Button variant="secondary" onClick={onClose}>
+					Cancel
+				</Button>
+				<Button onClick={onSave}>Save</Button>
+			</div>
+		</Dialog>
 	);
 }
 
