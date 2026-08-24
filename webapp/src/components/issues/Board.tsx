@@ -4,6 +4,7 @@ import {
 	type DragEndEvent,
 	KeyboardSensor,
 	PointerSensor,
+	useDndContext,
 	useDroppable,
 	useSensor,
 	useSensors,
@@ -119,6 +120,7 @@ function BoardColumn({
 	issues: Issue[];
 	teamKey: string;
 }) {
+	const { active } = useDndContext();
 	const { isOver, setNodeRef } = useDroppable({ id: state.id });
 	// The whole column (header strip included) is the drop target, so
 	// drops on empty columns or the header are not discarded.
@@ -144,7 +146,14 @@ function BoardColumn({
 			</header>
 			<ul
 				aria-label={`${state.name} Issues`}
-				className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2"
+				className={
+					"flex min-h-24 flex-1 flex-col gap-2 p-2 " +
+					// A dragged card leaves the list: an overflowing list
+					// would clip it at the column edge (and spawn a
+					// horizontal scrollbar inside the column), so the
+					// list opens up while a drag is active.
+					(active ? "overflow-visible" : "overflow-y-auto")
+				}
 			>
 				<SortableContext
 					items={issues.map((item) => item.id)}
@@ -183,7 +192,7 @@ function BoardCard({ issue, teamKey }: { issue: Issue; teamKey: string }) {
 			style={style}
 			className={
 				"relative flex items-start gap-1 rounded-lg border border-neutral-200 bg-white p-2.5 shadow-sm " +
-				(isDragging ? "z-10 opacity-90 shadow-lg" : "")
+				(isDragging ? "z-20 opacity-90 shadow-lg" : "")
 			}
 		>
 			<button
