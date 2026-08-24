@@ -116,6 +116,9 @@ class ActivityResponse(BaseModel):
     from_value: str | None
     to_value: str | None
     created_at: datetime
+    # Set on comment.* rows: the Comment the row is about (merged-feed pairing,
+    # ticket 06).
+    comment_id: uuid.UUID | None = None
 
 
 def issue_response(issue: Issue, team_key: str) -> IssueResponse:
@@ -319,6 +322,7 @@ async def list_issue_activity(
             from_value=activity.from_value,
             to_value=activity.to_value,
             created_at=activity.created_at,
+            comment_id=activity.comment_id,
         )
         for activity in activities
     ]

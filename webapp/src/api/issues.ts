@@ -65,6 +65,9 @@ export const activitySchema = z.object({
 	from_value: z.string().nullish(),
 	to_value: z.string().nullish(),
 	created_at: z.coerce.date(),
+	// Set on comment.* rows: the Comment the row is about (merged-feed
+	// pairing, ticket 06).
+	comment_id: z.string().uuid().nullish(),
 });
 
 export type Activity = z.infer<typeof activitySchema>;

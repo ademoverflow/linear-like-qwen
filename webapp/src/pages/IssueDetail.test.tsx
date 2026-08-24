@@ -41,6 +41,17 @@ vi.mock("@/api/issues", async (importOriginal) => {
 	};
 });
 
+vi.mock("@/api/comments", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/api/comments")>();
+	return {
+		...actual,
+		listIssueComments: vi.fn(),
+		createComment: vi.fn(),
+		updateComment: vi.fn(),
+		deleteComment: vi.fn(),
+	};
+});
+
 const { getMe } = await import("@/api/auth");
 const { listTeamLabels, listTeamMembers, listTeamStates, listTeams } =
 	await import("@/api/teams");
@@ -51,9 +62,12 @@ const {
 	transitionIssue,
 	updateIssue,
 } = await import("@/api/issues");
+const { createComment, deleteComment, listIssueComments, updateComment } =
+	await import("@/api/comments");
 const { renderAt } = await import("../test/test-router");
 const {
 	activityFixture,
+	commentFixture,
 	doneStateId,
 	issueDetailFixture,
 	issueFixture,
@@ -72,6 +86,7 @@ function mockCommon() {
 	vi.mocked(listTeamMembers).mockResolvedValue([memberFixture]);
 	vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
 	vi.mocked(listIssueActivity).mockResolvedValue(activityFixture);
+	vi.mocked(listIssueComments).mockResolvedValue([commentFixture]);
 	vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
 	vi.mocked(listTeamLabels).mockResolvedValue([]);
 }
@@ -205,5 +220,92 @@ describe("IssueDetail", () => {
 				name: "Edit title: Set up the core loop",
 			}),
 		).toBeTruthy();
+	});
+	it("shows the Comment card with its author and sanitised Markdown", async () => {
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const card = await screen.findByRole("article");
+		// The body is rendered Markdown (not raw).
+		expect(within(card).getByText("Sanitised")).toBeTruthy();
+		expect(within(card).queryByText("**Sanitised** comment body")).toBeNull();
+		// Author + timestamp header.
+		expect(within(card).getByText("Admin")).toBeTruthy();
+		// The composer is present.
+		expect(screen.getByLabelText("Write a comment")).toBeTruthy();
+	});
+
+	it("posts a Comment from the composer", async () => {
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const textarea = await screen.findByLabelText("Write a comment");
+		fireEvent.change(textarea, { target: { value: "First take" } });
+		fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+		await waitFor(() =>
+			expect(createComment).toHaveBeenCalledWith(issueFixture.id, {
+				body: "First take",
+			}),
+		);
+	});
+
+	it("shows Edit only for own Comments (Delete for an Admin's too)", async () => {
+		mockCommon();
+		vi.mocked(listIssueComments).mockResolvedValue([
+			commentFixture,
+			{
+				...commentFixture,
+				id: "99999999-9999-4999-8999-999999999999",
+				author_id: "33333333-3333-4333-8333-333333333333",
+				author_display_name: "Other",
+			},
+		]);
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const [mine, theirs] = await screen.findAllByRole("article");
+		expect(
+			within(mine).getByRole("button", { name: "Edit comment" }),
+		).toBeTruthy();
+		expect(
+			within(theirs).queryByRole("button", { name: "Edit comment" }),
+		).toBeNull();
+		// The fixture user is an Admin: deletion is offered on both.
+		expect(
+			within(mine).getByRole("button", { name: "Delete comment" }),
+		).toBeTruthy();
+		expect(
+			within(theirs).getByRole("button", { name: "Delete comment" }),
+		).toBeTruthy();
+	});
+
+	it("edits own Comment inline and saves the new body", async () => {
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByRole("article");
+		fireEvent.click(screen.getByRole("button", { name: "Edit comment" }));
+		const editor = screen.getByLabelText("Comment body");
+		fireEvent.change(editor, { target: { value: "Revised" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(updateComment).toHaveBeenCalledWith(
+				issueFixture.id,
+				commentFixture.id,
+				{ body: "Revised" },
+			),
+		);
+	});
+
+	it("deletes a Comment with a two-step confirm", async () => {
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		const card = await screen.findByRole("article");
+		const deleteButton = screen.getByRole("button", { name: "Delete comment" });
+		fireEvent.click(deleteButton);
+		// The two-step confirm shows "Confirm?" (the aria-label is stable).
+		expect(within(card).getByText("Confirm?")).toBeTruthy();
+		fireEvent.click(deleteButton);
+		await waitFor(() =>
+			expect(deleteComment).toHaveBeenCalledWith(
+				issueFixture.id,
+				commentFixture.id,
+			),
+		);
 	});
 });

@@ -1,4 +1,5 @@
 import type { Me } from "@/api/auth";
+import type { Comment } from "@/api/comments";
 import type { Activity, Issue, IssueDetail } from "@/api/issues";
 import type { Label, Team, TeamMember, WorkflowState } from "@/api/teams";
 
@@ -114,6 +115,19 @@ export const issueFixture: Issue = {
 	labels: [],
 	updated_at: ISO_RAW,
 };
+
+export const commentFixture: Comment = {
+	id: "88888888-8888-4888-8888-888888888888",
+	issue_id: testIssueId,
+	author_id: testUserId,
+	author_display_name: "Admin",
+	author_avatar_url: null,
+	body: "**Sanitised** comment body",
+	created_at: new Date(ISO),
+	edited_at: null,
+};
+
+export const commentsFixture: Comment[] = [commentFixture];
 
 export const issueDetailFixture: IssueDetail = {
 	...issueFixture,

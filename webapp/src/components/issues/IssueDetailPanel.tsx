@@ -5,12 +5,14 @@ import type { Label, TeamMember, WorkflowState } from "@/api/teams";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { useUpdateIssue } from "@/hooks/use-update-issue";
 import { Markdown } from "@/lib/markdown";
 import { PRIORITY_OPTIONS } from "@/lib/priorities";
-import { ActivityFeed } from "./ActivityFeed";
+import { IssueFeed } from "./IssueFeed";
 import { LabelChip } from "./LabelChip";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 const ESTIMATE_OPTIONS = [
 	{ value: "", label: "No estimate" },
@@ -21,10 +23,11 @@ const ESTIMATE_OPTIONS = [
 ];
 
 /**
- * The Issue detail panel (brief §7.2.3, ticket 03 + 04): inline-editable
- * title, Markdown description with edit/preview, the properties column and
- * Activity feed. State is a picker on the same transition path as the
- * Board (ticket 04); Labels are a picker (ticket 05) that applies the
+ * The Issue detail panel (brief §7.2.3, ticket 03 + 04 + 06): inline-
+ * editable title, Markdown description with edit/preview, the properties
+ * column and the story — the Comments thread merged chronologically with
+ * Activity (ticket 06). State is a picker on the same transition path as
+ * the Board (ticket 04); Labels are a picker (ticket 05) that applies the
  * full set through the same optimistic edit path (ADR 0008).
  */
 export function IssueDetailPanel({
@@ -46,6 +49,7 @@ export function IssueDetailPanel({
 }) {
 	const update = useUpdateIssue(teamId, issue.id);
 	const transition = useTransitionIssue(teamId);
+	const me = useCurrentUser();
 	const dueDateId = useId();
 	const [labelPickerOpen, setLabelPickerOpen] = useState(false);
 	const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
@@ -209,10 +213,7 @@ export function IssueDetailPanel({
 				/>
 			</section>
 
-			<section aria-label="Activity" className="flex flex-col gap-3">
-				<h2 className="text-sm font-semibold">Activity</h2>
-				<ActivityFeed issueId={issue.id} />
-			</section>
+			<IssueFeed issueId={issue.id} teamId={teamId} me={me.data ?? null} />
 		</div>
 	);
 }
@@ -343,19 +344,8 @@ function DescriptionEditor({
 	onSave: (description: string) => void;
 }) {
 	const [editing, setEditing] = useState(false);
-	const [mode, setMode] = useState<"write" | "preview">("write");
-	const [draft, setDraft] = useState(description ?? "");
 
-	const startEditing = () => {
-		setDraft(description ?? "");
-		setMode("write");
-		setEditing(true);
-	};
-	const cancel = () => setEditing(false);
-	const save = () => {
-		setEditing(false);
-		if (draft !== description) onSave(draft);
-	};
+	const startEditing = () => setEditing(true);
 
 	if (!editing) {
 		return (
@@ -377,43 +367,17 @@ function DescriptionEditor({
 
 	return (
 		<section aria-label="Edit description">
-			<div className="mb-2 flex items-center gap-1">
-				<Button
-					variant={mode === "write" ? "primary" : "secondary"}
-					onClick={() => setMode("write")}
-				>
-					Write
-				</Button>
-				<Button
-					variant={mode === "preview" ? "primary" : "secondary"}
-					onClick={() => setMode("preview")}
-				>
-					Preview
-				</Button>
-			</div>
-			{mode === "write" ? (
-				<textarea
-					value={draft}
-					rows={10}
-					aria-label="Description"
-					onChange={(event) => setDraft(event.target.value)}
-					className="w-full rounded-md border border-neutral-300 bg-white p-2 text-sm focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
-				/>
-			) : (
-				<div className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
-					{draft ? (
-						<Markdown content={draft} />
-					) : (
-						<p className="text-sm text-neutral-500">Nothing to preview.</p>
-					)}
-				</div>
-			)}
-			<div className="mt-2 flex gap-2">
-				<Button onClick={save}>Save</Button>
-				<Button variant="secondary" onClick={cancel}>
-					Cancel
-				</Button>
-			</div>
+			<MarkdownEditor
+				initial={description ?? ""}
+				ariaLabel="Description"
+				rows={10}
+				maxLength={50_000}
+				onSave={(draft) => {
+					setEditing(false);
+					if (draft !== description) onSave(draft);
+				}}
+				onCancel={() => setEditing(false)}
+			/>
 		</section>
 	);
 }

@@ -54,6 +54,9 @@ class Activity(SQLModel, table=True):
     field: str | None = Field(default=None, max_length=100)
     from_value: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     to_value: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    # Set on comment.* rows: which Comment the row is about (ticket 06).
+    # No FK on purpose: a comment.deleted row outlives the Comment.
+    comment_id: uuid.UUID | None = Field(default=None)
 
     actor: Optional["User"] = Relationship(
         sa_relationship_kwargs={"primaryjoin": "Activity.actor_id == User.id"}

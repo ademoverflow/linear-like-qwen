@@ -11,6 +11,7 @@ from core import __version__
 from core.domain.errors import DomainError
 from core.routers import (
     auth_router,
+    comments_router,
     health_router,
     invitations_router,
     issues_router,
@@ -69,6 +70,7 @@ app.include_router(health_router)
 # Every resource router is mounted here. Add: api_router.include_router(<name>_router)
 api_router = APIRouter(prefix=API_PREFIX)
 api_router.include_router(auth_router)
+api_router.include_router(comments_router)
 api_router.include_router(teams_router)
 api_router.include_router(issues_router)
 api_router.include_router(labels_router)

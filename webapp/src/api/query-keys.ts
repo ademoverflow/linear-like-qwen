@@ -16,6 +16,7 @@ export const queryKeys = {
 			["issues", "page", teamId, filters] as const,
 		detail: (issueId: string) => ["issues", "detail", issueId] as const,
 		activity: (issueId: string) => ["issues", "activity", issueId] as const,
+		comments: (issueId: string) => ["issues", "comments", issueId] as const,
 	},
 	admin: {
 		users: () => ["admin", "users"] as const,

@@ -5,6 +5,7 @@ relies on this file to populate ``SQLModel.metadata`` for autogenerate.
 """
 
 from core.models.activity import Activity
+from core.models.comment import Comment
 from core.models.invitation import Invitation
 from core.models.issue import Issue
 from core.models.issue_label import IssueLabel
@@ -18,6 +19,7 @@ from core.models.workspace import Workspace
 
 __all__ = [
     "Activity",
+    "Comment",
     "Invitation",
     "Issue",
     "IssueLabel",
