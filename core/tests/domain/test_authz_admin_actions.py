@@ -1,4 +1,4 @@
-"""Admin-only workspace actions: invitations and user management (brief §5.3)."""
+"""Admin-only workspace actions: invitations, user management and Issue hard delete."""
 
 import uuid
 
@@ -12,11 +12,12 @@ ADMIN_ONLY_ACTIONS = (
     Action.USER_REACTIVATE,
     Action.USER_PROMOTE,
     Action.USER_DEMOTE,
+    Action.ISSUE_DELETE,
 )
 
 
 def test_non_admins_are_denied_admin_workspace_actions() -> None:
-    """Invitations and user management are workspace-Admin privileges only."""
+    """Invitations, user management and Issue hard delete are Admin-only."""
     outsider = Actor(user_id=uuid.uuid4(), is_admin=False, team_roles={})
     for action in ADMIN_ONLY_ACTIONS:
         assert can(outsider, action, None) is False

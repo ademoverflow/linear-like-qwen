@@ -189,13 +189,15 @@ async def list_issues(  # noqa: PLR0913  # FastAPI query params
     sort: Annotated[str | None, Query()] = None,
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
+    include_archived: Annotated[bool, Query()] = False,  # noqa: FBT002  # FastAPI query param
 ) -> IssueListResponse:
     """List a Team's Issues with filters, sort and cursor pagination.
 
     Filters: ``state_id``, ``assignee_id``, ``label_id``, ``priority``
     (repeated, combinable). Sort: ``created|updated|priority:asc|desc``
     (default ``created:desc``). Pagination: keyset cursor (default page 50,
-    max 200).
+    max 200). ``include_archived=true`` lists archived Issues alongside
+    the active ones (brief §3.4, ticket 07).
     """
     query = IssueQuery(
         state_ids=tuple(state_id or ()),
@@ -205,6 +207,7 @@ async def list_issues(  # noqa: PLR0913  # FastAPI query params
         sort=parse_sort(sort),
         cursor=decode_cursor(cursor) if cursor is not None else None,
         limit=validate_limit(limit),
+        include_archived=include_archived,
     )
     team, issues, next_cursor = await issues_service.list_issues(
         session, user=user, team_id=team_id, query=query
@@ -265,6 +268,47 @@ async def transition_issue(
         updated_at=payload.updated_at,
     )
     return issue_response(issue, team.key)
+
+
+@router.post("/{issue_id}/archive")
+async def archive_issue(
+    issue_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueResponse:
+    """Archive an Issue (Team owner or Admin); cascades to its children."""
+    team, issue = await issues_service.archive_issue(session, user=user, issue_id=issue_id)
+    return issue_response(issue, team.key)
+
+
+@router.post("/{issue_id}/restore")
+async def restore_issue(
+    issue_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueResponse:
+    """Restore an archived Issue (Team owner or Admin); children stay archived."""
+    team, issue = await issues_service.restore_issue(session, user=user, issue_id=issue_id)
+    return issue_response(issue, team.key)
+
+
+class IssueIdentifierRequest(BaseModel):
+    """Body for ``DELETE /issues/{id}`` (brief §3.4: identifier confirmation)."""
+
+    identifier: str = Field(min_length=1, max_length=20)
+
+
+@router.delete("/{issue_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def hard_delete_issue(
+    issue_id: uuid.UUID,
+    payload: IssueIdentifierRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """Hard-delete an Issue (Admin only); the identifier must match exactly."""
+    await issues_service.hard_delete_issue(
+        session, user=user, issue_id=issue_id, identifier=payload.identifier
+    )
 
 
 class IssueBulkRequest(BaseModel):

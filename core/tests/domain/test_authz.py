@@ -56,7 +56,7 @@ def test_actions_without_resource_are_denied_for_non_admins() -> None:
 
 
 def test_owner_only_actions_require_owner_role() -> None:
-    """Label management and Issue archiving need the owner role (brief §5.2).
+    """Label management and Issue archive/restore need the owner role (brief §5.2).
 
     Members are denied, owners and Admins pass; outsiders are denied.
     """
@@ -69,6 +69,7 @@ def test_owner_only_actions_require_owner_role() -> None:
         Action.LABEL_EDIT,
         Action.LABEL_DELETE,
         Action.ISSUE_ARCHIVE,
+        Action.ISSUE_RESTORE,
     ):
         assert can(owner, action, TeamResource(TEAM_A))
         assert can(_actor(is_admin=True), action, TeamResource(TEAM_A))

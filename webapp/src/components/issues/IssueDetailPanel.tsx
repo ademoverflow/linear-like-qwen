@@ -1,14 +1,17 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Issue, IssueDetail, IssueUpdateInput } from "@/api/issues";
 import type { Label, TeamMember, WorkflowState } from "@/api/teams";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useIssueActions } from "@/hooks/use-issue-actions";
 import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { useUpdateIssue } from "@/hooks/use-update-issue";
 import { Markdown } from "@/lib/markdown";
+import { isOwnerOrAdmin } from "@/lib/permissions";
 import { PRIORITY_OPTIONS } from "@/lib/priorities";
 import { IssueFeed } from "./IssueFeed";
 import { LabelChip } from "./LabelChip";
@@ -51,8 +54,18 @@ export function IssueDetailPanel({
 	const transition = useTransitionIssue(teamId);
 	const me = useCurrentUser();
 	const dueDateId = useId();
+	const navigate = useNavigate();
+	const issueActions = useIssueActions();
 	const [labelPickerOpen, setLabelPickerOpen] = useState(false);
 	const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [confirmValue, setConfirmValue] = useState("");
+
+	const canArchive = isOwnerOrAdmin(me.data, teamId);
+
+	const navigateToIssues = useCallback(() => {
+		navigate({ to: "/teams/$teamKey/issues", params: { teamKey } });
+	}, [navigate, teamKey]);
 
 	const patch = useCallback(
 		(fields: Omit<IssueUpdateInput, "updated_at">) => {
@@ -99,6 +112,23 @@ export function IssueDetailPanel({
 					aria-hidden
 				/>
 				<span className="text-xs text-neutral-500">{issue.state_name}</span>
+				{canArchive && (
+					<Button
+						variant="ghost"
+						onClick={() =>
+							issueActions.archive.mutate(issue.id, {
+								onSuccess: () => navigateToIssues(),
+							})
+						}
+					>
+						Archive
+					</Button>
+				)}
+				{me?.data?.is_admin === true && (
+					<Button variant="ghost" onClick={() => setDeleteOpen(true)}>
+						Delete
+					</Button>
+				)}
 			</div>
 
 			<InlineTitle value={issue.title} onSave={(title) => patch({ title })} />
@@ -214,6 +244,52 @@ export function IssueDetailPanel({
 			</section>
 
 			<IssueFeed issueId={issue.id} teamId={teamId} me={me.data ?? null} />
+
+			<Dialog
+				open={deleteOpen}
+				title="Delete this Issue?"
+				onClose={() => setDeleteOpen(false)}
+			>
+				<p className="text-sm text-neutral-600 dark:text-neutral-300">
+					This permanently deletes {issue.identifier} — including its children,
+					Comments and Activity. This cannot be undone.
+				</p>
+				<div className="mt-4">
+					<Input
+						label={
+							<>
+								Type <span className="font-mono">{issue.identifier}</span> to
+								confirm
+							</>
+						}
+						value={confirmValue}
+						onChange={setConfirmValue}
+					/>
+				</div>
+				<div className="mt-4 flex justify-end gap-2">
+					<Button variant="secondary" onClick={() => setDeleteOpen(false)}>
+						Cancel
+					</Button>
+					<Button
+						disabled={
+							confirmValue.trim() !== issue.identifier ||
+							issueActions.hardDelete.isPending
+						}
+						onClick={() => {
+							setDeleteOpen(false);
+							issueActions.hardDelete.mutate(
+								{
+									issueId: issue.id,
+									identifier: confirmValue.trim(),
+								},
+								{ onSuccess: () => navigateToIssues() },
+							);
+						}}
+					>
+						Delete {issue.identifier}
+					</Button>
+				</div>
+			</Dialog>
 		</div>
 	);
 }

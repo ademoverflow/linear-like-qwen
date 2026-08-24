@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, cast
 
-from sqlalchemy import and_, case, literal_column, or_
+from sqlalchemy import and_, case, delete, literal_column, or_
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.elements import Case, ColumnElement
 from sqlmodel import select
@@ -22,6 +22,7 @@ from core.domain.errors import (
 from core.domain.identifiers import format_identifier
 from core.domain.issues import (
     BulkAction,
+    confirm_identifier,
     validate_description,
     validate_estimate,
     validate_priority,
@@ -44,7 +45,9 @@ from core.domain.workflow import (
     transition,
 )
 from core.models.activity import Activity
+from core.models.comment import Comment
 from core.models.issue import Issue
+from core.models.issue_label import IssueLabel
 from core.models.label import Label
 from core.models.membership import Membership
 from core.models.team import Team
@@ -84,6 +87,9 @@ EDITABLE_FIELDS: tuple[str, ...] = (
 # eager-loaded relationships) are the real server values, not naive defaults.
 REFRESH_ATTRIBUTES: list[str] = ["state", "assignee", "labels", "created_at", "updated_at"]
 
+MSG_ARCHIVE_FORBIDDEN = "Only a Team owner or an Admin can archive an Issue"
+MSG_DELETE_ADMIN_ONLY = "Only an Admin can hard-delete an Issue"
+MSG_NOT_ARCHIVED = "The Issue is not archived"
 MSG_BULK_ISSUES_NOT_FOUND = "Some Issues could not be found"
 MSG_BULK_SAME_TEAM = "Issues must belong to the same Team"
 MSG_BULK_ARCHIVED = "Some Issues are archived"
@@ -177,9 +183,11 @@ async def create_issue(
 async def list_issues(
     session: AsyncSession, *, user: User, team_id: uuid.UUID, query: IssueQuery
 ) -> tuple[Team, list[Issue], str | None]:
-    """List a Team's non-archived Issues with filters, sort and pagination.
+    """List a Team's Issues with filters, sort and pagination.
 
-    Filters (``state_id``/``assignee_id``/``label_id``/``priority``,
+    Archived Issues are hidden by default; ``include_archived`` lists
+    them alongside the active ones (brief §3.4, ticket 07). Filters
+    (``state_id``/``assignee_id``/``label_id``/``priority``,
     combinable), sort (``created``/``updated``/``priority`` with
     ``asc``/``desc``, default ``created:desc``) and keyset (cursor)
     pagination (default page 50, max 200) per brief §9.
@@ -207,16 +215,15 @@ async def list_issues(
         validate_cursor_for_sort(query.cursor, query.sort)
     statement = (
         select(Issue)
-        .where(
-            Issue.team_id == team.id,
-            Issue.archived_at.is_(None),  # type: ignore[union-attr]
-        )
+        .where(Issue.team_id == team.id)
         .options(
             joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
             joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
             selectinload(Issue.labels),  # type: ignore[arg-type,attr-defined]  # M2M: selectinload avoids row duplication
         )
     )
+    if not query.include_archived:
+        statement = statement.where(Issue.archived_at.is_(None))  # type: ignore[union-attr]  # SQLModel field is a Column at runtime
     if query.state_ids:
         statement = statement.where(Issue.state_id.in_(query.state_ids))  # type: ignore[attr-defined]
     if query.assignee_ids:
@@ -486,6 +493,185 @@ async def transition_issue(
         return team, issue
 
 
+async def archive_issue(
+    session: AsyncSession, *, user: User, issue_id: uuid.UUID
+) -> tuple[Team, Issue]:
+    """Archive an Issue (soft delete, brief §3.4).
+
+    Sets ``archived_at`` on the Issue and, per brief §3.4, on every
+    non-archived child Issue (the hierarchy is one level deep); already
+    archived children are skipped. One ``issue.updated`` Activity row
+    (``field="archived_at"``, the timestamp as ``to_value``) per archived
+    Issue, matching the bulk archive (ticket 05).
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user (Team owner or Admin).
+        issue_id: The Issue to archive.
+
+    Returns:
+        The Team and the archived Issue (with its State loaded).
+
+    Raises:
+        NotFoundError: If the Issue does not exist, is already archived,
+            or is not visible to the actor (non-members get 404).
+        ForbiddenError: If the Team is archived, or the actor is not a
+            Team owner (or Admin).
+
+    """
+    async with session.begin():
+        actor = await load_actor(session, user)
+        issue = await _visible_issue(session, actor=actor, issue_id=issue_id, for_update=True)
+        team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+        if team.archived_at is not None:
+            raise ForbiddenError(MSG_TEAM_ARCHIVED)
+        if not can(actor, Action.ISSUE_ARCHIVE, TeamResource(team.id)):
+            raise ForbiddenError(MSG_ARCHIVE_FORBIDDEN)
+        now = datetime.now(UTC)
+        issue.archived_at = now
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor.user_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="archived_at",
+                to_value=now.isoformat(),
+            ),
+        )
+        children = list(
+            (
+                await session.exec(
+                    select(Issue).where(Issue.parent_id == issue.id).with_for_update(of=Issue)
+                )
+            ).all()
+        )
+        for child in children:
+            if child.archived_at is not None:
+                continue
+            child.archived_at = now
+            record_activity(
+                session,
+                Activity(
+                    issue_id=child.id,
+                    actor_id=actor.user_id,
+                    kind=ACTIVITY_ISSUE_UPDATED,
+                    field="archived_at",
+                    to_value=now.isoformat(),
+                ),
+            )
+        await session.flush()
+        await session.refresh(issue, REFRESH_ATTRIBUTES)
+        return team, issue
+
+
+async def restore_issue(
+    session: AsyncSession, *, user: User, issue_id: uuid.UUID
+) -> tuple[Team, Issue]:
+    """Restore an archived Issue (brief §3.4).
+
+    Clears ``archived_at`` on the Issue only: restoring a parent does not
+    restore its children (brief §3.4). Emits one ``issue.updated``
+    Activity row (``field="archived_at"``, the old timestamp as
+    ``from_value``).
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user (Team owner or Admin).
+        issue_id: The archived Issue to restore.
+
+    Returns:
+        The Team and the restored Issue (with its State loaded).
+
+    Raises:
+        NotFoundError: If the Issue does not exist or is not visible to
+            the actor (non-members get 404).
+        ForbiddenError: If the Team is archived, or the actor is not a
+            Team owner (or Admin).
+        ValidationError: If the Issue is not archived.
+
+    """
+    async with session.begin():
+        actor = await load_actor(session, user)
+        issue = await _visible_issue(
+            session, actor=actor, issue_id=issue_id, for_update=True, include_archived=True
+        )
+        if issue.archived_at is None:
+            raise ValidationError(MSG_NOT_ARCHIVED)
+        team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+        if team.archived_at is not None:
+            raise ForbiddenError(MSG_TEAM_ARCHIVED)
+        if not can(actor, Action.ISSUE_RESTORE, TeamResource(team.id)):
+            raise ForbiddenError(MSG_ARCHIVE_FORBIDDEN)
+        previous = issue.archived_at
+        issue.archived_at = None
+        record_activity(
+            session,
+            Activity(
+                issue_id=issue.id,
+                actor_id=actor.user_id,
+                kind=ACTIVITY_ISSUE_UPDATED,
+                field="archived_at",
+                from_value=previous.isoformat(),
+            ),
+        )
+        await session.flush()
+        await session.refresh(issue, REFRESH_ATTRIBUTES)
+        return team, issue
+
+
+async def hard_delete_issue(
+    session: AsyncSession, *, user: User, issue_id: uuid.UUID, identifier: str
+) -> Team:
+    """Hard-delete an Issue: Admin only, confirmed by identifier (brief §3.4).
+
+    Permanently removes the Issue and its children (the hierarchy is one
+    level deep), cascading to their Comments, Activity rows and Label
+    links; no Activity row is written — the trail goes with the Issue.
+    Admins may hard-delete even in an archived Team (the Team archive is a
+    soft hide; the removal is a workspace-level Admin action).
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user (must be a workspace Admin).
+        issue_id: The Issue to delete.
+        identifier: The identifier the client repeated as confirmation.
+
+    Returns:
+        The Team (the Issue itself is gone).
+
+    Raises:
+        NotFoundError: If the Issue does not exist or is not visible to
+            the actor (non-members get 404).
+        ForbiddenError: If the actor is not a workspace Admin.
+        ValidationError: If the identifier does not match the Issue.
+
+    """
+    async with session.begin():
+        actor = await load_actor(session, user)
+        issue = await _visible_issue(
+            session, actor=actor, issue_id=issue_id, for_update=True, include_archived=True
+        )
+        if not can(actor, Action.ISSUE_DELETE, None):
+            raise ForbiddenError(MSG_DELETE_ADMIN_ONLY)
+        team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+        confirm_identifier(format_identifier(team.key, issue.number), identifier)
+        children = list(
+            (
+                await session.exec(
+                    select(Issue).where(Issue.parent_id == issue.id).with_for_update(of=Issue)
+                )
+            ).all()
+        )
+        for target in [*children, issue]:
+            await session.execute(delete(IssueLabel).where(IssueLabel.issue_id == target.id))  # type: ignore[arg-type]  # SQLModel field is a Column at runtime
+            await session.execute(delete(Comment).where(Comment.issue_id == target.id))  # type: ignore[arg-type]  # SQLModel field is a Column at runtime
+            await session.execute(delete(Activity).where(Activity.issue_id == target.id))  # type: ignore[arg-type]  # SQLModel field is a Column at runtime
+            await session.execute(delete(Issue).where(Issue.id == target.id))  # type: ignore[arg-type]  # SQLModel field is a Column at runtime
+        await session.flush()
+        return team
+
+
 @dataclass(frozen=True)
 class _FieldChange:
     """A single Issue field change (name plus raw client value)."""
@@ -570,24 +756,29 @@ async def _visible_issue(
     actor: Actor,
     issue_id: uuid.UUID,
     for_update: bool = False,
+    include_archived: bool = False,
 ) -> Issue:
     """Load an Issue the actor may see (non-members get 404, not 403).
 
-    Archived Issues are invisible. ``for_update`` locks the row
-    (``SELECT ... FOR UPDATE``) for the write path.
+    Archived Issues are invisible unless ``include_archived`` (the
+    restore and hard-delete paths need to reach them). ``for_update``
+    locks the row (``SELECT ... FOR UPDATE``) for the write path.
 
     Args:
         session: The database session.
         actor: The acting user (id, admin flag, team roles).
         issue_id: The Issue to load.
         for_update: Whether to lock the row for writing.
+        include_archived: Whether archived Issues are visible to this
+            caller (the restore and hard-delete paths).
 
     Returns:
         The Issue (State/assignee eager-loaded).
 
     Raises:
-        NotFoundError: If the Issue does not exist, is archived, or is not
-            visible to the actor.
+        NotFoundError: If the Issue does not exist, is archived (and
+            ``include_archived`` is false), or is not visible to the
+            actor.
 
     """
     query = (
@@ -604,7 +795,7 @@ async def _visible_issue(
     issue = (await session.exec(query)).one_or_none()
     if issue is None or not can(actor, Action.ISSUE_VIEW, IssueResource(issue.team_id)):
         raise NotFoundError(MSG_ISSUE_NOT_FOUND)
-    if issue.archived_at is not None:
+    if issue.archived_at is not None and not include_archived:
         raise NotFoundError(MSG_ISSUE_NOT_FOUND)
     return issue
 

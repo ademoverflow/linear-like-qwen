@@ -38,6 +38,9 @@ vi.mock("@/api/issues", async (importOriginal) => {
 		updateIssue: vi.fn(),
 		transitionIssue: vi.fn(),
 		listIssueActivity: vi.fn(),
+		archiveIssue: vi.fn(),
+		restoreIssue: vi.fn(),
+		deleteIssue: vi.fn(),
 	};
 });
 
@@ -56,9 +59,12 @@ const { getMe } = await import("@/api/auth");
 const { listTeamLabels, listTeamMembers, listTeamStates, listTeams } =
 	await import("@/api/teams");
 const {
+	archiveIssue,
+	deleteIssue,
 	getIssue,
 	listAllIssues,
 	listIssueActivity,
+	listIssues,
 	transitionIssue,
 	updateIssue,
 } = await import("@/api/issues");
@@ -85,6 +91,10 @@ function mockCommon() {
 	vi.mocked(listAllIssues).mockResolvedValue([issueFixture]);
 	vi.mocked(listTeamMembers).mockResolvedValue([memberFixture]);
 	vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
+	vi.mocked(listIssues).mockResolvedValue({
+		issues: [issueFixture],
+		next_cursor: null,
+	});
 	vi.mocked(listIssueActivity).mockResolvedValue(activityFixture);
 	vi.mocked(listIssueComments).mockResolvedValue([commentFixture]);
 	vi.mocked(listTeamStates).mockResolvedValue(statesFixture);
@@ -306,6 +316,63 @@ describe("IssueDetail", () => {
 				issueFixture.id,
 				commentFixture.id,
 			),
+		);
+	});
+
+	it("archives the Issue from the header and returns to the list", async () => {
+		mockCommon();
+		vi.mocked(archiveIssue).mockResolvedValue(issueFixture);
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByText("ENG-1");
+		fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+		await waitFor(() =>
+			expect(archiveIssue).toHaveBeenCalledWith(issueFixture.id),
+		);
+		// The detail 404s once archived, so the panel returns to the list.
+		expect(await screen.findByText("New Issue")).toBeTruthy();
+	});
+
+	it("hides Archive and Delete from plain members", async () => {
+		mockCommon();
+		vi.mocked(getMe).mockResolvedValue({
+			...meFixture,
+			is_admin: false,
+			memberships: [
+				{
+					team_id: teamFixture.id,
+					team_key: "ENG",
+					team_name: "Engineering",
+					role: "member",
+				},
+			],
+		});
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByText("ENG-1");
+		expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+	});
+
+	it("hard-deletes only after the exact identifier is typed (Admin)", async () => {
+		mockCommon();
+		vi.mocked(deleteIssue).mockResolvedValue(undefined);
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByText("ENG-1");
+		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete this Issue?",
+		});
+		const confirm = within(dialog).getByRole("button", {
+			name: "Delete ENG-1",
+		});
+		expect(confirm.hasAttribute("disabled")).toBe(true);
+		const input = within(dialog).getByLabelText(/Type ENG-1 to confirm/);
+		fireEvent.change(input, { target: { value: "ENG-999" } });
+		expect(confirm.hasAttribute("disabled")).toBe(true);
+		fireEvent.change(input, { target: { value: "ENG-1" } });
+		expect(confirm.hasAttribute("disabled")).toBe(false);
+		fireEvent.click(confirm);
+		await waitFor(() =>
+			expect(deleteIssue).toHaveBeenCalledWith(issueFixture.id, "ENG-1"),
 		);
 	});
 });

@@ -178,6 +178,10 @@ author/Team owner/Admin — merged chronologically with Activity into the issue'
 - `Issue.comments` is intentionally **not mapped** on the ORM (the DB FK
   cascade covers ticket 07's hard delete; a mapped relationship would need
   cascade handling on parent deletion).
+- Comment-card Edit/Delete visibility is computed **client-side** from
+  `/auth/me` (is_admin, Team memberships, Comment author) — the ADR 0004
+  pattern the webapp uses throughout; no server-side `can_edit`/
+  `can_delete` flags on `CommentResponse` (recorded per code review).
 - Pre-existing tsc errors in `webapp/src/pages/Admin.tsx` +
   `Admin.test.tsx` (2 errors, files untouched by this ticket) still fail
   `pnpm --filter webapp run build`; everything added here type-checks clean.

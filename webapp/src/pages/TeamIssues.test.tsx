@@ -35,15 +35,24 @@ vi.mock("@/api/issues", async (importOriginal) => {
 		listAllIssues: vi.fn(),
 		createIssue: vi.fn(),
 		bulkUpdateIssues: vi.fn(),
+		archiveIssue: vi.fn(),
+		restoreIssue: vi.fn(),
+		deleteIssue: vi.fn(),
 	};
 });
 
 const { getMe } = await import("@/api/auth");
 const { listTeamLabels, listTeamMembers, listTeamStates, listTeams } =
 	await import("@/api/teams");
-const { bulkUpdateIssues, listIssues } = await import("@/api/issues");
+const { bulkUpdateIssues, listIssues, restoreIssue } = await import(
+	"@/api/issues"
+);
 const { renderAt } = await import("../test/test-router");
+
+import type { Issue } from "@/api/issues";
+
 const {
+	ISO,
 	issueFixture,
 	labelsFixture,
 	memberFixture,
@@ -156,6 +165,84 @@ describe("TeamIssues", () => {
 				state_id: todoState?.id,
 			}),
 		);
+	});
+
+	const archivedIssueFixture: Issue = {
+		...issueFixture,
+		id: "44444444-4444-4444-8444-444444444445",
+		number: 2,
+		identifier: "ENG-2",
+		title: "Old work",
+		archived_at: new Date(ISO),
+	};
+
+	it("lists archived Issues when the Archived toggle is on", async () => {
+		mockCommon();
+		// Server-like: the flag decides whether archived Issues are listed.
+		vi.mocked(listIssues).mockImplementation(async (_teamId, params) =>
+			params?.include_archived
+				? {
+						issues: [issueFixture, archivedIssueFixture],
+						next_cursor: null,
+					}
+				: { issues: [issueFixture], next_cursor: null },
+		);
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		expect(screen.queryByText("ENG-2")).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Archived" }));
+		await vi.waitFor(() =>
+			expect(listIssues).toHaveBeenCalledWith(
+				teamFixture.id,
+				expect.objectContaining({ include_archived: true }),
+			),
+		);
+		expect(await screen.findByText("ENG-2")).toBeTruthy();
+		// Button label + the card's badge.
+		expect(screen.getAllByText("Archived")).toHaveLength(2);
+	});
+
+	it("restores an archived Issue from the row action (owner/Admin)", async () => {
+		mockCommon();
+		vi.mocked(listIssues).mockResolvedValue({
+			issues: [archivedIssueFixture],
+			next_cursor: null,
+		});
+		vi.mocked(restoreIssue).mockResolvedValue(archivedIssueFixture);
+		renderAt("/teams/ENG/issues");
+		await screen.findByRole("button", { name: "Archived" });
+		fireEvent.click(screen.getByRole("button", { name: "Archived" }));
+		await screen.findByText("ENG-2");
+		fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+		await vi.waitFor(() =>
+			expect(restoreIssue).toHaveBeenCalledWith(archivedIssueFixture.id),
+		);
+	});
+
+	it("hides the Restore action from plain members", async () => {
+		mockCommon();
+		vi.mocked(getMe).mockResolvedValue({
+			...meFixture,
+			is_admin: false,
+			memberships: [
+				{
+					team_id: teamFixture.id,
+					team_key: "ENG",
+					team_name: "Engineering",
+					role: "member",
+				},
+			],
+		});
+		vi.mocked(listIssues).mockResolvedValue({
+			issues: [archivedIssueFixture],
+			next_cursor: null,
+		});
+		renderAt("/teams/ENG/issues");
+		await screen.findByRole("button", { name: "Archived" });
+		fireEvent.click(screen.getByRole("button", { name: "Archived" }));
+		await screen.findByText("ENG-2");
+		expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
 	});
 
 	it("shows the filter count and an empty-match state", async () => {

@@ -37,6 +37,8 @@ class Action(StrEnum):
     LABEL_EDIT = "label.edit"
     LABEL_DELETE = "label.delete"
     ISSUE_ARCHIVE = "issue.archive"
+    ISSUE_RESTORE = "issue.restore"
+    ISSUE_DELETE = "issue.delete"
 
 
 @dataclass(frozen=True)
@@ -64,10 +66,20 @@ class IssueResource:
 
 Resource = TeamResource | IssueResource | None
 
+# Workspace-level actions that only workspace Admins may perform
+# (brief §5.2; non-Admins are denied regardless of their Team roles).
+ADMIN_ONLY_ACTIONS: frozenset[Action] = frozenset({Action.TEAM_CREATE, Action.ISSUE_DELETE})
+
 # Team actions that require the owner role (brief §5.2; workspace Admins
 # bypass the check, as always).
 OWNER_ONLY_ACTIONS: frozenset[Action] = frozenset(
-    {Action.LABEL_CREATE, Action.LABEL_EDIT, Action.LABEL_DELETE, Action.ISSUE_ARCHIVE}
+    {
+        Action.LABEL_CREATE,
+        Action.LABEL_EDIT,
+        Action.LABEL_DELETE,
+        Action.ISSUE_ARCHIVE,
+        Action.ISSUE_RESTORE,
+    }
 )
 
 
@@ -75,9 +87,9 @@ def can(actor: Actor, action: Action, resource: Resource) -> bool:
     """Decide whether ``actor`` may perform ``action`` on ``resource``.
 
     Workspace Admins may do everything in v1 (brief §5.2). Team-scoped actions
-    require a Membership on the Team the resource belongs to; ``TEAM_CREATE``
-    is Admin-only; the owner-only actions (``OWNER_ONLY_ACTIONS``) require the
-    ``owner`` role.
+    require a Membership on the Team the resource belongs to; the
+    admin-only actions (``ADMIN_ONLY_ACTIONS``) are denied to everyone else;
+    the owner-only actions (``OWNER_ONLY_ACTIONS``) require the ``owner`` role.
 
     Args:
         actor: The principal acting.
@@ -90,7 +102,7 @@ def can(actor: Actor, action: Action, resource: Resource) -> bool:
     """
     if actor.is_admin:
         return True
-    if action is Action.TEAM_CREATE:
+    if action in ADMIN_ONLY_ACTIONS:
         return False
     if resource is None:
         return False

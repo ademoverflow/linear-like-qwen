@@ -27,14 +27,20 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { useBulkIssues } from "@/hooks/use-bulk-issues";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useIssueActions } from "@/hooks/use-issue-actions";
+import { isOwnerOrAdmin } from "@/lib/permissions";
 
 const DEFAULT_SORT = "created:desc";
 const PAGE_SIZE = 50;
 const SELECT_CLASS =
 	"h-8 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
 
-function filtersToParams(filters: IssueListFilters): IssueListParams {
+function filtersToParams(
+	filters: IssueListFilters,
+	showArchived: boolean,
+): IssueListParams {
 	const params: IssueListParams = { limit: PAGE_SIZE };
+	if (showArchived) params.include_archived = true;
 	if (filters.stateIds.length > 0) params.state_ids = filters.stateIds;
 	if (filters.assigneeIds.length > 0) params.assignee_ids = filters.assigneeIds;
 	if (filters.labelIds.length > 0) params.label_ids = filters.labelIds;
@@ -47,7 +53,9 @@ function filtersToParams(filters: IssueListFilters): IssueListParams {
  * filters, sort and the owner-only Labels manager; the Issues are grouped
  * by Workflow State (position order, non-empty groups) and paged with a
  * cursor ("Load more"). Selection mode adds a bulk bar (State, Assignee
- * and owner-only Archive; all-or-nothing, non-optimistic).
+ * and owner-only Archive; all-or-nothing, non-optimistic). The "Archived"
+ * toggle lists archived Issues alongside the active ones (ticket 07);
+ * archived rows show a badge and a per-Row Restore for owners/Admins.
  */
 export function TeamIssues() {
 	// `from` matches by routeId; the pathless "app" layout prefixes child ids.
@@ -63,6 +71,8 @@ export function TeamIssues() {
 	const [selecting, setSelecting] = useState(false);
 	const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 	const [loadingMore, setLoadingMore] = useState(false);
+	const [showArchived, setShowArchived] = useState(false);
+	const issueActions = useIssueActions();
 
 	const teamsQuery = useQuery({
 		queryKey: queryKeys.teams.all(),
@@ -70,11 +80,7 @@ export function TeamIssues() {
 	});
 	const team = teamsQuery.data?.find((item) => item.key === teamKey);
 	const me = useCurrentUser().data;
-	const isOwner =
-		me?.is_admin === true ||
-		me?.memberships.some(
-			(item) => item.team_id === team?.id && item.role === "owner",
-		) === true;
+	const isOwner = isOwnerOrAdmin(me, team?.id);
 
 	const statesQuery = useQuery({
 		queryKey: queryKeys.teams.states(team?.id ?? ""),
@@ -92,13 +98,16 @@ export function TeamIssues() {
 		enabled: team !== undefined,
 	});
 
-	const filtersKey = JSON.stringify({ filters, sort });
+	const filtersKey = JSON.stringify({ filters, sort, showArchived });
 	const pageKey = queryKeys.issues.page(team?.id ?? "", filtersKey);
 	const issuesQuery = useQuery({
 		queryKey: pageKey,
 		queryFn: (): Promise<IssueListPage> =>
 			team
-				? listIssues(team.id, { ...filtersToParams(filters), sort })
+				? listIssues(team.id, {
+						...filtersToParams(filters, showArchived),
+						sort,
+					})
 				: Promise.resolve({ issues: [], next_cursor: null }),
 		enabled: team !== undefined,
 	});
@@ -128,7 +137,7 @@ export function TeamIssues() {
 		if (!team || !current?.next_cursor || loadingMore) return;
 		setLoadingMore(true);
 		listIssues(team.id, {
-			...filtersToParams(filters),
+			...filtersToParams(filters, showArchived),
 			sort,
 			cursor: current.next_cursor,
 		})
@@ -149,6 +158,7 @@ export function TeamIssues() {
 		team,
 		filters,
 		sort,
+		showArchived,
 		loadingMore,
 		queryClient,
 		pageKey,
@@ -197,6 +207,14 @@ export function TeamIssues() {
 					<span className="text-sm text-neutral-500">Issues</span>
 				</nav>
 				<div className="ml-auto flex flex-wrap items-center gap-2">
+					<Button
+						variant="secondary"
+						aria-pressed={showArchived}
+						className={showArchived ? "border-accent text-accent" : ""}
+						onClick={() => setShowArchived((value) => !value)}
+					>
+						Archived
+					</Button>
 					<Button variant="secondary" onClick={() => setFilterOpen(true)}>
 						Filter
 						{hasFilters ? ` (${filterCount})` : ""}
@@ -323,6 +341,12 @@ export function TeamIssues() {
 										selectable={selecting}
 										checked={selected.has(issue.id)}
 										onToggle={toggleSelect}
+										onRestore={
+											isOwner
+												? (issueId: string) =>
+														issueActions.restore.mutate(issueId)
+												: undefined
+										}
 									/>
 								))}
 							</section>

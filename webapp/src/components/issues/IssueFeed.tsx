@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useComments } from "@/hooks/use-comments";
 import { mergeFeed } from "@/lib/feed";
 import { Markdown } from "@/lib/markdown";
+import { isOwnerOrAdmin } from "@/lib/permissions";
 import { MarkdownEditor } from "./MarkdownEditor";
 
 const FIELD_LABELS: Record<string, string> = {
@@ -35,6 +36,11 @@ function describeChange(activity: Activity): string {
 	if (activity.kind === "comment.updated") return "edited their Comment";
 	if (activity.kind === "comment.deleted") return "deleted a Comment";
 	if (activity.kind === "issue.created") return "created this Issue";
+	if (activity.field === "archived_at") {
+		if (from === null && to !== null) return "archived this Issue";
+		if (from !== null && to === null) return "restored this Issue";
+		return "changed the archive state";
+	}
 	const label =
 		FIELD_LABELS[activity.field ?? ""] ?? activity.field ?? "the Issue";
 	if (from !== null && to !== null) {
@@ -73,12 +79,8 @@ export function IssueFeed({
 	});
 	const { create, update, remove } = useComments(issueId);
 
-	const isTeamOwner =
-		me?.memberships.find((membership) => membership.team_id === teamId)
-			?.role === "owner";
-
 	const canDelete = (comment: Comment) =>
-		(me?.is_admin ?? false) || isTeamOwner || me?.id === comment.author_id;
+		isOwnerOrAdmin(me, teamId) || me?.id === comment.author_id;
 
 	const isLoading = commentsQuery.isLoading || activityQuery.isLoading;
 	const error = commentsQuery.error ?? activityQuery.error;

@@ -225,3 +225,4 @@ class IssueQuery:
     sort: SortSpec = SortSpec(key="created", direction="desc")
     cursor: Cursor | None = None
     limit: int = DEFAULT_LIMIT
+    include_archived: bool = False

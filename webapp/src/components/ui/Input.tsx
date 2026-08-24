@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { useId } from "react";
 
 interface InputProps {
-	label: string;
+	label: ReactNode;
 	value: string;
 	onChange: (value: string) => void;
 	error?: string;

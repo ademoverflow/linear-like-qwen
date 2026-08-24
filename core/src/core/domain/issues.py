@@ -98,6 +98,33 @@ def validate_estimate(estimate: int | None) -> int | None:
 
 
 # ---------------------------------------------------------------------------
+# Hard delete (brief §3.4, ticket 07)
+# ---------------------------------------------------------------------------
+
+MSG_IDENTIFIER_MISMATCH = "The entered identifier does not match the Issue"
+
+
+def confirm_identifier(expected: str, provided: str) -> None:
+    """Confirm a hard delete by repeating the Issue's identifier.
+
+    The client must send the exact canonical identifier (e.g. ``ENG-42``)
+    in the DELETE body; surrounding whitespace is tolerated, any other
+    difference is a 400 before anything is deleted.
+
+    Args:
+        expected: The Issue's canonical identifier (``KEY-number``).
+        provided: The identifier the client repeated as confirmation.
+
+    Raises:
+        ValidationError: If the trimmed input does not exactly match
+            ``expected`` (case-sensitive).
+
+    """
+    if provided.strip() != expected:
+        raise ValidationError(MSG_IDENTIFIER_MISMATCH)
+
+
+# ---------------------------------------------------------------------------
 # Bulk operations (brief §4.4, ticket 05)
 # ---------------------------------------------------------------------------
 

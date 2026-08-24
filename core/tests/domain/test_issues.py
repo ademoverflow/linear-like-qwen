@@ -5,6 +5,7 @@ from core.domain.errors import ValidationError
 from core.domain.issues import (
     DESCRIPTION_MAX_LENGTH,
     PRIORITIES,
+    confirm_identifier,
     validate_description,
     validate_estimate,
     validate_priority,
@@ -69,3 +70,25 @@ def test_validate_estimate_rejects_out_of_range() -> None:
         validate_estimate(-1)
     with pytest.raises(ValidationError, match="Estimate"):
         validate_estimate(22)
+
+
+def test_confirm_identifier_accepts_exact_match() -> None:
+    """The canonical identifier repeated verbatim passes (brief §3.4)."""
+    confirm_identifier("ENG-42", "ENG-42")
+
+
+def test_confirm_identifier_trims_surrounding_whitespace() -> None:
+    """Accidental padding around the typed identifier is allowed."""
+    confirm_identifier("ENG-42", "  ENG-42\n")
+
+
+def test_confirm_identifier_rejects_mismatch() -> None:
+    """A different identifier is a 400 before any deletion."""
+    with pytest.raises(ValidationError, match="identifier"):
+        confirm_identifier("ENG-42", "ENG-43")
+
+
+def test_confirm_identifier_rejects_empty() -> None:
+    """No confirmation at all is a 400."""
+    with pytest.raises(ValidationError, match="identifier"):
+        confirm_identifier("ENG-42", "")

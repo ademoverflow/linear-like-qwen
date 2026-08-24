@@ -3,7 +3,7 @@ import type { Comment } from "@/api/comments";
 import type { Activity, Issue, IssueDetail } from "@/api/issues";
 import type { Label, Team, TeamMember, WorkflowState } from "@/api/teams";
 
-const ISO = "2026-08-22T12:00:00.000Z";
+export const ISO = "2026-08-22T12:00:00.000Z";
 const ISO_RAW = "2026-08-22T12:00:00.123456+00:00";
 
 export const testTeamId = "11111111-1111-4111-8111-111111111111";

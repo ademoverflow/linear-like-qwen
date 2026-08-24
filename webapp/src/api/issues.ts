@@ -80,6 +80,8 @@ export interface IssueListParams {
 	sort?: string;
 	limit?: number;
 	cursor?: string;
+	// Lists archived Issues alongside the active ones (ticket 07).
+	include_archived?: boolean;
 }
 
 export const issueListSchema = z.object({
@@ -103,6 +105,7 @@ export async function listIssues(
 	if (params.sort) query.sort = params.sort;
 	if (params.limit) query.limit = params.limit;
 	if (params.cursor) query.cursor = params.cursor;
+	if (params.include_archived) query.include_archived = "true";
 	const data = await api.get("/issues", { query });
 	return issueListSchema.parse(data);
 }
@@ -195,4 +198,27 @@ export async function bulkUpdateIssues(
 ): Promise<Issue[]> {
 	const data = await api.post("/issues/bulk", input);
 	return issueBulkResponseSchema.parse(data).issues;
+}
+
+/** Archive an Issue (soft delete, brief §3.4, ticket 07). */
+export async function archiveIssue(issueId: string): Promise<Issue> {
+	const data = await api.post(`/issues/${issueId}/archive`);
+	return issueSchema.parse(data);
+}
+
+/** Restore an archived Issue (brief §3.4, ticket 07). */
+export async function restoreIssue(issueId: string): Promise<Issue> {
+	const data = await api.post(`/issues/${issueId}/restore`);
+	return issueSchema.parse(data);
+}
+
+/**
+ * Hard-delete an Issue (Admin only, brief §3.4, ticket 07). The identifier
+ * must repeat the Issue's exact identifier as confirmation; 204 (no body).
+ */
+export async function deleteIssue(
+	issueId: string,
+	identifier: string,
+): Promise<void> {
+	await api.delete(`/issues/${issueId}`, { body: { identifier } });
 }
