@@ -13,6 +13,7 @@ import { listTeams } from "@/api/teams";
 import { AppShell } from "@/components/layout/AppShell";
 import { Admin } from "@/pages/Admin";
 import { Home } from "@/pages/Home";
+import { IssueDetail } from "@/pages/IssueDetail";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { TeamIssues } from "@/pages/TeamIssues";
@@ -117,6 +118,13 @@ function buildRouteTree() {
 		component: TeamIssues,
 	});
 
+	// Issue detail: list + right-hand panel (ticket 03).
+	const issueDetailRoute = createRoute({
+		getParentRoute: () => appRoute,
+		path: "/teams/$teamKey/issues/$issueId",
+		component: IssueDetail,
+	});
+
 	// Admin screen: workspace Admins only (brief §7.1, §5.3).
 	const adminRoute = createRoute({
 		getParentRoute: () => appRoute,
@@ -134,7 +142,12 @@ function buildRouteTree() {
 	return rootRoute.addChildren([
 		loginRoute,
 		registerRoute,
-		appRoute.addChildren([homeRoute, teamIssuesRoute, adminRoute]),
+		appRoute.addChildren([
+			homeRoute,
+			teamIssuesRoute,
+			issueDetailRoute,
+			adminRoute,
+		]),
 	]);
 }
 

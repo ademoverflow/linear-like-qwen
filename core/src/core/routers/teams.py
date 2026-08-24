@@ -37,6 +37,15 @@ class TeamResponse(BaseModel):
     updated_at: datetime
 
 
+class TeamMemberResponse(BaseModel):
+    """A Team member as exposed by the API (ticket 03 assignee picker)."""
+
+    id: uuid.UUID
+    display_name: str
+    avatar_url: str | None
+    role: str
+
+
 def team_response(team: Team) -> TeamResponse:
     """Build a TeamResponse from a Team."""
     return TeamResponse(
@@ -75,3 +84,22 @@ async def list_teams(
     """List the Teams visible to the current user (admin: all, else own)."""
     teams = await teams_service.list_teams(session, user=user)
     return [team_response(team) for team in teams]
+
+
+@router.get("/{team_id}/members")
+async def list_team_members(
+    team_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[TeamMemberResponse]:
+    """List a Team's members with their roles (Team member or Admin)."""
+    members = await teams_service.list_team_members(session, user=user, team_id=team_id)
+    return [
+        TeamMemberResponse(
+            id=member.id,
+            display_name=member.display_name or member.email,
+            avatar_url=member.avatar_url,
+            role=role.value,
+        )
+        for member, role in members
+    ]

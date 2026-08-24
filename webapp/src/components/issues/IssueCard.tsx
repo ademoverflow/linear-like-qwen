@@ -1,14 +1,25 @@
+import { Link } from "@tanstack/react-router";
 import type { Issue } from "@/api/issues";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityGlyph } from "@/lib/priorities";
 
 /**
  * Issue card, prototype variant B (card stack): identifier + title + state
- * on row one, priority glyph + assignee on row two.
+ * on row one, priority glyph + assignee on row two. Links to the detail.
  */
-export function IssueCard({ issue }: { issue: Issue }) {
+export function IssueCard({
+	issue,
+	teamKey,
+}: {
+	issue: Issue;
+	teamKey: string;
+}) {
 	return (
-		<div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm hover:shadow dark:border-neutral-800 dark:bg-neutral-900">
+		<Link
+			to="/teams/$teamKey/issues/$issueId"
+			params={{ teamKey, issueId: issue.id }}
+			className="block rounded-lg border border-neutral-200 bg-white p-3 shadow-sm hover:shadow dark:border-neutral-800 dark:bg-neutral-900"
+		>
 			<div className="flex items-center gap-2">
 				<span className="shrink-0 font-mono text-xs text-neutral-500">
 					{issue.identifier}
@@ -39,6 +50,6 @@ export function IssueCard({ issue }: { issue: Issue }) {
 					}
 				/>
 			</div>
-		</div>
+		</Link>
 	);
 }

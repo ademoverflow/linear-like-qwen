@@ -1,8 +1,8 @@
-"""Issues router (thin): create and list Issues."""
+"""Issues router (thin): create, list, detail, edit and Activity for Issues."""
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
@@ -53,6 +53,39 @@ class IssueResponse(BaseModel):
     updated_at: datetime
 
 
+class IssueDetailResponse(IssueResponse):
+    """Issue detail with the parent's identifier and title (ticket 03)."""
+
+    parent_identifier: str | None
+    parent_title: str | None
+
+
+class IssueUpdateRequest(BaseModel):
+    """Body for ``PATCH /issues/{id}`` (ADR 0008: echo the last-seen ``updated_at``)."""
+
+    updated_at: datetime
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=50_000)
+    priority: Literal["none", "urgent", "high", "medium", "low"] | None = None
+    assignee_id: uuid.UUID | None = None
+    parent_id: uuid.UUID | None = None
+    due_date: date | None = None
+    estimate: int | None = Field(default=None, ge=0, le=21)
+
+
+class ActivityResponse(BaseModel):
+    """An Activity row as exposed by the API (from/to are display-ready text)."""
+
+    id: uuid.UUID
+    actor_id: uuid.UUID | None
+    actor_display_name: str | None
+    kind: str
+    field: str | None
+    from_value: str | None
+    to_value: str | None
+    created_at: datetime
+
+
 def issue_response(issue: Issue, team_key: str) -> IssueResponse:
     """Build an IssueResponse from an Issue (State/assignee eager-loaded)."""
     return IssueResponse(
@@ -82,6 +115,16 @@ def issue_response(issue: Issue, team_key: str) -> IssueResponse:
     )
 
 
+def issue_detail_response(issue: Issue, team_key: str, parent: Issue | None) -> IssueDetailResponse:
+    """Build an IssueDetailResponse (State/assignee eager-loaded)."""
+    base = issue_response(issue, team_key).model_dump()
+    return IssueDetailResponse(
+        **base,
+        parent_identifier=format_identifier(team_key, parent.number) if parent else None,
+        parent_title=parent.title if parent else None,
+    )
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_issue(
     payload: IssueCreateRequest,
@@ -104,3 +147,60 @@ async def list_issues(
     """List a Team's non-archived Issues, newest number first."""
     team, issues = await issues_service.list_issues(session, user=user, team_id=team_id)
     return [issue_response(issue, team.key) for issue in issues]
+
+
+@router.get("/{issue_id}")
+async def get_issue(
+    issue_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueDetailResponse:
+    """Fetch an Issue's detail (Team member or Admin; non-members get 404)."""
+    team, issue, parent = await issues_service.get_issue(session, user=user, issue_id=issue_id)
+    return issue_detail_response(issue, team.key, parent)
+
+
+@router.patch("/{issue_id}")
+async def update_issue(
+    issue_id: uuid.UUID,
+    payload: IssueUpdateRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IssueResponse:
+    """Edit an Issue's fields; replies 409 when the echoed ``updated_at`` is stale."""
+    changes = {
+        name: getattr(payload, name)
+        for name in payload.model_fields_set
+        if name in issues_service.EDITABLE_FIELDS
+    }
+    team, issue = await issues_service.update_issue(
+        session,
+        user=user,
+        issue_id=issue_id,
+        updated_at=payload.updated_at,
+        changes=changes,
+    )
+    return issue_response(issue, team.key)
+
+
+@router.get("/{issue_id}/activity")
+async def list_issue_activity(
+    issue_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[ActivityResponse]:
+    """List the Issue's Activity rows, oldest first (Team member or Admin)."""
+    activities = await issues_service.list_issue_activity(session, user=user, issue_id=issue_id)
+    return [
+        ActivityResponse(
+            id=activity.id,
+            actor_id=activity.actor_id,
+            actor_display_name=activity.actor.display_name if activity.actor else None,
+            kind=activity.kind,
+            field=activity.field,
+            from_value=activity.from_value,
+            to_value=activity.to_value,
+            created_at=activity.created_at,
+        )
+        for activity in activities
+    ]

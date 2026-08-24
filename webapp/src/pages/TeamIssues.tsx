@@ -85,7 +85,7 @@ export function TeamIssues() {
 				) : (
 					<div className="flex max-w-2xl flex-col gap-2">
 						{(issuesQuery.data ?? []).map((issue) => (
-							<IssueCard key={issue.id} issue={issue} />
+							<IssueCard key={issue.id} issue={issue} teamKey={team.key} />
 						))}
 					</div>
 				)}

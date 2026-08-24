@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/api/client";
 import { NewIssueDialog } from "@/components/issues/NewIssueDialog";
+import { Toaster } from "@/components/ui/Toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useShortcut } from "@/hooks/use-shortcut";
 import {
@@ -57,6 +58,7 @@ export function AppShell() {
 				defaultTeamId={newIssue.defaultTeamId}
 				onClose={() => setNewIssue({ open: false })}
 			/>
+			<Toaster />
 		</NewIssueContext.Provider>
 	);
 }

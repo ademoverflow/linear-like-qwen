@@ -14,11 +14,24 @@ export const teamSchema = z.object({
 
 export type Team = z.infer<typeof teamSchema>;
 
+export const teamMemberSchema = z.object({
+	id: z.string().uuid(),
+	display_name: z.string(),
+	avatar_url: z.string().nullish(),
+	role: z.enum(["owner", "member"]),
+});
+
+export type TeamMember = z.infer<typeof teamMemberSchema>;
+
 export async function listTeams(): Promise<Team[]> {
 	const data = await api.get("/teams");
 	return z.array(teamSchema).parse(data);
 }
 
+export async function listTeamMembers(teamId: string): Promise<TeamMember[]> {
+	const data = await api.get(`/teams/${teamId}/members`);
+	return z.array(teamMemberSchema).parse(data);
+}
 export async function createTeam(input: {
 	name: string;
 	key: string;

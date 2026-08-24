@@ -6,9 +6,12 @@ export const queryKeys = {
 	},
 	teams: {
 		all: () => ["teams"] as const,
+		members: (teamId: string) => ["teams", "members", teamId] as const,
 	},
 	issues: {
 		team: (teamId: string) => ["issues", "team", teamId] as const,
+		detail: (issueId: string) => ["issues", "detail", issueId] as const,
+		activity: (issueId: string) => ["issues", "activity", issueId] as const,
 	},
 	admin: {
 		users: () => ["admin", "users"] as const,

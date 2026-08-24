@@ -1,10 +1,17 @@
 """Team use-cases (brief §6): creation with Workflow seeding, listing."""
 
+import uuid
+
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.domain.authz import Action, Role, can
-from core.domain.errors import ConflictError, ForbiddenError, ValidationError
+from core.domain.authz import Action, Role, TeamResource, can
+from core.domain.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from core.domain.identifiers import is_valid_team_key
 from core.domain.workflow import DEFAULT_WORKFLOW_STATES
 from core.models.membership import Membership
@@ -15,6 +22,7 @@ from core.models.workflow_state import WorkflowState
 from core.services.actors import load_actor
 
 MSG_ADMIN_ONLY = "Only workspace admins can create Teams"
+MSG_TEAM_NOT_FOUND = "Team not found"
 MSG_NAME_INVALID = "Team name must be 1-100 characters"
 MSG_KEY_INVALID = "Team key must be 2-5 uppercase letters (A-Z)"
 MSG_KEY_EXISTS = "A Team with this key already exists"
@@ -106,3 +114,40 @@ async def list_teams(session: AsyncSession, *, user: User) -> list[Team]:
             return []
         statement = statement.where(Team.id.in_(team_ids))  # type: ignore[attr-defined]
     return list((await session.exec(statement)).all())
+
+
+async def list_team_members(
+    session: AsyncSession, *, user: User, team_id: uuid.UUID
+) -> list[tuple[User, Role]]:
+    """List a Team's members with their roles (ticket 03 assignee picker).
+
+    Args:
+        session: The database session.
+        user: The authenticated acting user (Team member or Admin).
+        team_id: The Team to list members for.
+
+    Returns:
+        The Team's members (User with their Membership role), sorted by
+        display name.
+
+    Raises:
+        NotFoundError: If the Team does not exist or is not visible to the
+            actor (non-members get 404, not 403).
+
+    """
+    actor = await load_actor(session, user)
+    team = (await session.exec(select(Team).where(Team.id == team_id))).one_or_none()
+    if team is None or not can(actor, Action.TEAM_VIEW, TeamResource(team.id)):
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
+    memberships = list(
+        (await session.exec(select(Membership).where(Membership.team_id == team.id))).all()
+    )
+    if not memberships:
+        return []
+    member_ids = [membership.user_id for membership in memberships]
+    users = (
+        await session.exec(select(User).where(User.id.in_(member_ids)))  # type: ignore[attr-defined]
+    ).all()
+    user_by_id = {user.id: user for user in users}
+    ordered = sorted(memberships, key=lambda m: user_by_id[m.user_id].display_name or "")
+    return [(user_by_id[m.user_id], Role(m.role)) for m in ordered]
