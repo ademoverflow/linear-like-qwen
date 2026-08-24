@@ -2,6 +2,8 @@ import {
 	closestCorners,
 	DndContext,
 	type DragEndEvent,
+	type DragOverEvent,
+	type DragStartEvent,
 	KeyboardSensor,
 	PointerSensor,
 	useDndContext,
@@ -11,13 +13,13 @@ import {
 } from "@dnd-kit/core";
 import {
 	SortableContext,
+	type SortingStrategy,
 	sortableKeyboardCoordinates,
 	useSortable,
-	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
-import { useCallback } from "react";
+import { Fragment, useCallback, useState } from "react";
 import type { Issue } from "@/api/issues";
 import type { WorkflowState } from "@/api/teams";
 import { Avatar } from "@/components/ui/Avatar";
@@ -40,14 +42,27 @@ export function targetStateForDrop(
 	return overIssue?.state_id ?? null;
 }
 
+// Columns are transition targets, not reorderable lists: the built-in item
+// displacement would double the space the drop placeholder already makes.
+// Keyboard movement is unaffected (dnd-kit derives the coordinates from
+// droppable rects, not from the strategy).
+const noReflowStrategy: SortingStrategy = () => null;
+
+/** Where the dragged card will land if dropped now (column + insertion index). */
+interface DropHint {
+	columnId: string;
+	index: number;
+}
+
 /**
  * Kanban Board (brief §7.2.4, ADR 0006 + ADR 0011): one column per
  * Workflow State in position order — including backlog and canceled.
  * Dragging a card between columns performs the transition through the
  * single mutation path with optimistic update + rollback (ADR 0008).
- * Cards carry ARIA roles and are keyboard-operable (dnd-kit keyboard
- * sensor on the drag handle: Space/Enter lifts, arrows move, Space/Enter
- * drops, Escape cancels).
+ * While a card hovers a column, a ghost of the card marks the insertion
+ * point (the Linear/Trello "pending" drop indicator). Cards carry ARIA
+ * roles and are keyboard-operable (dnd-kit keyboard sensor on the drag
+ * handle: Space/Enter lifts, arrows move, Space/Enter drops, Esc cancels).
  */
 export function Board({
 	teamKey,
@@ -67,10 +82,88 @@ export function Board({
 		}),
 	);
 	const transition = useTransitionIssue(teamId);
+	const [draggedIssue, setDraggedIssue] = useState<Issue | null>(null);
+	const [placeholderHeight, setPlaceholderHeight] = useState<number | null>(
+		null,
+	);
+	const [dropHint, setDropHint] = useState<DropHint | null>(null);
+
+	const computeDropHint = useCallback(
+		(event: DragOverEvent): DropHint | null => {
+			const { active, over } = event;
+			if (!over) return null;
+			const overId = String(over.id);
+			const activeRect = active.rect.current.translated;
+			const overColumn = states.find((state) => state.id === overId);
+			if (overColumn) {
+				// Hovering the column body or header: the top half inserts
+				// at the top, the bottom half at the end (Trello convention).
+				const columnIssues = issues.filter(
+					(item) => item.state_id === overColumn.id,
+				);
+				const atTop =
+					activeRect == null
+						? true
+						: activeRect.top + activeRect.height / 2 <
+							over.rect.top + over.rect.height / 2;
+				return {
+					columnId: overColumn.id,
+					index: atTop ? 0 : columnIssues.length,
+				};
+			}
+			const overIssue = issues.find((item) => item.id === overId);
+			if (!overIssue) return null;
+			const columnIssues = issues.filter(
+				(item) => item.state_id === overIssue.state_id,
+			);
+			const index = columnIssues.findIndex((item) => item.id === overIssue.id);
+			// The top half of a hovered card inserts above it, the bottom
+			// half below it (the Linear/Trello convention).
+			const above =
+				activeRect == null
+					? true
+					: activeRect.top + activeRect.height / 2 <
+						over.rect.top + over.rect.height / 2;
+			return {
+				columnId: overIssue.state_id,
+				index: above ? index : index + 1,
+			};
+		},
+		[issues, states],
+	);
+
+	const handleDragStart = useCallback(
+		(event: DragStartEvent) => {
+			const issue = issues.find((item) => item.id === String(event.active.id));
+			setDraggedIssue(issue ?? null);
+			setPlaceholderHeight(event.active.rect.current.initial?.height ?? null);
+			setDropHint(null);
+		},
+		[issues],
+	);
+
+	const handleDragOver = useCallback(
+		(event: DragOverEvent) => {
+			const hint = computeDropHint(event);
+			setDropHint((previous) =>
+				previous?.columnId === hint?.columnId && previous?.index === hint?.index
+					? previous
+					: hint,
+			);
+		},
+		[computeDropHint],
+	);
+
+	const endDrag = useCallback(() => {
+		setDraggedIssue(null);
+		setPlaceholderHeight(null);
+		setDropHint(null);
+	}, []);
 
 	const handleDragEnd = useCallback(
 		(event: DragEndEvent) => {
 			const { active, over } = event;
+			endDrag();
 			if (!over) return;
 			const issueId = String(active.id);
 			const issue = issues.find((item) => item.id === issueId);
@@ -83,14 +176,18 @@ export function Board({
 				updated_at: issue.updated_at,
 			});
 		},
-		[issues, states, transition],
+		[issues, states, transition, endDrag],
 	);
 
 	return (
 		<DndContext
 			sensors={sensors}
 			collisionDetection={closestCorners}
+			measuring={{ droppable: { frequency: 50 } }}
+			onDragStart={handleDragStart}
+			onDragOver={handleDragOver}
 			onDragEnd={handleDragEnd}
+			onDragCancel={endDrag}
 		>
 			<div className="flex h-full min-w-max gap-3">
 				{states.map((state) => {
@@ -103,6 +200,9 @@ export function Board({
 							state={state}
 							issues={columnIssues}
 							teamKey={teamKey}
+							dropHint={dropHint?.columnId === state.id ? dropHint : null}
+							draggedIssue={draggedIssue}
+							placeholderHeight={placeholderHeight}
 						/>
 					);
 				})}
@@ -115,10 +215,16 @@ function BoardColumn({
 	state,
 	issues,
 	teamKey,
+	dropHint,
+	draggedIssue,
+	placeholderHeight,
 }: {
 	state: WorkflowState;
 	issues: Issue[];
 	teamKey: string;
+	dropHint: DropHint | null;
+	draggedIssue: Issue | null;
+	placeholderHeight: number | null;
 }) {
 	const { active } = useDndContext();
 	const { isOver, setNodeRef } = useDroppable({ id: state.id });
@@ -130,7 +236,9 @@ function BoardColumn({
 			aria-label={state.name}
 			className={
 				"flex h-full w-72 shrink-0 flex-col rounded-lg border border-neutral-200 dark:border-neutral-800 " +
-				(isOver ? "bg-accent/10" : "bg-neutral-100/60 dark:bg-neutral-900/40")
+				(isOver || dropHint != null
+					? "bg-accent/10"
+					: "bg-neutral-100/60 dark:bg-neutral-900/40")
 			}
 		>
 			<header className="flex items-center gap-2 px-3 py-2.5">
@@ -157,14 +265,68 @@ function BoardColumn({
 			>
 				<SortableContext
 					items={issues.map((item) => item.id)}
-					strategy={verticalListSortingStrategy}
+					strategy={noReflowStrategy}
 				>
-					{issues.map((issue) => (
-						<BoardCard key={issue.id} issue={issue} teamKey={teamKey} />
+					{issues.map((issue, index) => (
+						<Fragment key={issue.id}>
+							{dropHint?.index === index && draggedIssue && (
+								<DropPlaceholder
+									issue={draggedIssue}
+									height={placeholderHeight}
+								/>
+							)}
+							<BoardCard issue={issue} teamKey={teamKey} />
+						</Fragment>
 					))}
+					{dropHint?.index === issues.length && draggedIssue && (
+						<DropPlaceholder issue={draggedIssue} height={placeholderHeight} />
+					)}
 				</SortableContext>
 			</ul>
 		</section>
+	);
+}
+
+/**
+ * The "pending" preview of the dragged card in its target column (the
+ * Linear/Trello drop indicator): a ghost of the card at the insertion
+ * point while the card hovers the column.
+ */
+function DropPlaceholder({
+	issue,
+	height,
+}: {
+	issue: Issue;
+	height: number | null;
+}) {
+	return (
+		<div
+			aria-hidden
+			style={height == null ? undefined : { height }}
+			className="flex shrink-0 items-start rounded-lg border-2 border-dashed border-neutral-300 bg-white/60 p-2.5 dark:border-neutral-600 dark:bg-neutral-800/40"
+		>
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-1.5">
+					<span className="shrink-0 font-mono text-xs text-neutral-400">
+						{issue.identifier}
+					</span>
+					<span
+						className="inline-block h-2 w-2 shrink-0 rounded-full"
+						style={{ backgroundColor: issue.state_color }}
+						aria-hidden
+					/>
+					<span className="truncate text-xs text-neutral-400">
+						{issue.state_name}
+					</span>
+				</div>
+				<p className="mt-1 truncate text-sm font-medium text-neutral-500 dark:text-neutral-400">
+					{issue.title}
+				</p>
+				<div className="mt-1.5 flex items-center gap-2">
+					<PriorityGlyph priority={issue.priority} />
+				</div>
+			</div>
+		</div>
 	);
 }
 
