@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import {
 	type IssueListPage,
@@ -20,6 +20,7 @@ import {
 	type IssueListFilters,
 	SORT_OPTIONS,
 } from "@/components/issues/IssueFilterDialog";
+import { IssueQuickActions } from "@/components/issues/IssueQuickActions";
 import { LabelManagerDialog } from "@/components/issues/LabelManagerDialog";
 import { useNewIssue } from "@/components/layout/new-issue-context";
 import { Button } from "@/components/ui/Button";
@@ -28,12 +29,18 @@ import { toast } from "@/components/ui/Toast";
 import { useBulkIssues } from "@/hooks/use-bulk-issues";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useIssueActions } from "@/hooks/use-issue-actions";
+import {
+	type QuickActionKind,
+	useIssueListKeyboard,
+} from "@/hooks/use-issue-list-keyboard";
+import { useShortcut } from "@/hooks/use-shortcut";
+import { useTransitionIssue } from "@/hooks/use-transition-issue";
+import { useUpdateIssue } from "@/hooks/use-update-issue";
 import { isOwnerOrAdmin } from "@/lib/permissions";
+import { SELECT_CLASS } from "@/lib/styles";
 
 const DEFAULT_SORT = "created:desc";
 const PAGE_SIZE = 50;
-const SELECT_CLASS =
-	"h-8 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
 
 function filtersToParams(
 	filters: IssueListFilters,
@@ -60,6 +67,7 @@ function filtersToParams(
 export function TeamIssues() {
 	// `from` matches by routeId; the pathless "app" layout prefixes child ids.
 	const { teamKey } = useParams({ from: "/app/teams/$teamKey/issues" });
+	const navigate = useNavigate();
 	const newIssue = useNewIssue();
 	const queryClient = useQueryClient();
 	const bulk = useBulkIssues();
@@ -69,6 +77,7 @@ export function TeamIssues() {
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [labelsOpen, setLabelsOpen] = useState(false);
 	const [selecting, setSelecting] = useState(false);
+	const [quick, setQuick] = useState<QuickActionKind | null>(null);
 	const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [showArchived, setShowArchived] = useState(false);
@@ -131,6 +140,41 @@ export function TeamIssues() {
 			}))
 			.filter((group) => group.items.length > 0);
 	}, [statesQuery.data, issues]);
+
+	// The list keyboard set (ticket 09): a cursor over the flat display
+	// order (State groups); bulk mode suspends it.
+	const flatIssues = useMemo(
+		() => groups.flatMap((group) => group.items),
+		[groups],
+	);
+	const { cursorId, setCursorId } = useIssueListKeyboard({
+		issueIds: flatIssues.map((issue) => issue.id),
+		disabled: selecting || quick !== null,
+		onOpen: (issueId) => {
+			const issue = flatIssues.find((item) => item.id === issueId);
+			if (issue) {
+				navigate({
+					to: "/teams/$teamKey/issues/$issueId",
+					params: { teamKey, issueId: issue.id },
+				});
+			}
+		},
+		onQuickAction: setQuick,
+	});
+	useShortcut("Escape", () => {
+		if (quick !== null) {
+			setQuick(null);
+		} else if (selecting) {
+			setSelecting(false);
+			setSelected(new Set());
+		} else {
+			setCursorId(null);
+		}
+	});
+
+	const cursorIssue = flatIssues.find((issue) => issue.id === cursorId) ?? null;
+	const transition = useTransitionIssue(team?.id ?? "");
+	const update = useUpdateIssue(team?.id ?? "", cursorIssue?.id ?? "");
 
 	const loadMore = useCallback(() => {
 		const current = issuesQuery.data;
@@ -360,6 +404,7 @@ export function TeamIssues() {
 										teamKey={team.key}
 										selectable={selecting}
 										checked={selected.has(issue.id)}
+										selected={cursorId === issue.id}
 										onToggle={toggleSelect}
 										onRestore={
 											isOwner
@@ -385,6 +430,50 @@ export function TeamIssues() {
 					</div>
 				)}
 			</div>
+
+			{quick !== null && cursorIssue && (
+				<IssueQuickActions
+					issue={cursorIssue}
+					kind={quick}
+					states={statesQuery.data ?? []}
+					members={membersQuery.data ?? []}
+					labels={labelsQuery.data ?? []}
+					onStateChange={(stateId) => {
+						transition.mutate({
+							issue_id: cursorIssue.id,
+							state_id: stateId,
+							updated_at: cursorIssue.updated_at,
+						});
+						setQuick(null);
+					}}
+					onAssigneeChange={(userId) => {
+						update.mutate({
+							updated_at: cursorIssue.updated_at,
+							assignee_id: userId,
+						});
+						setQuick(null);
+					}}
+					onPriorityChange={(priority) => {
+						update.mutate({
+							updated_at: cursorIssue.updated_at,
+							priority,
+						});
+						setQuick(null);
+					}}
+					onToggleLabel={(label, add) => {
+						const labelIds = add
+							? [...cursorIssue.labels.map((item) => item.id), label.id]
+							: cursorIssue.labels
+									.filter((item) => item.id !== label.id)
+									.map((item) => item.id);
+						update.mutate({
+							updated_at: cursorIssue.updated_at,
+							label_ids: labelIds,
+						});
+						setQuick(null);
+					}}
+				/>
+			)}
 
 			{selecting && selected.size > 0 && (
 				<div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">

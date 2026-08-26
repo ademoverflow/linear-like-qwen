@@ -5,7 +5,9 @@ import {
 	PanelLeftClose,
 	PanelLeftOpen,
 	Plus,
+	Search,
 	Shield,
+	User,
 } from "lucide-react";
 import { useState } from "react";
 import { logout, queryKeys } from "@/api/auth";
@@ -18,10 +20,11 @@ import { isOwnerOrAdmin } from "@/lib/permissions";
 const STORAGE_KEY = "sidebar-collapsed";
 
 /**
- * Collapsible left sidebar (brief §7.1): workspace name, Teams section and
- * logout. Teams link to their Issues list.
+ * Collapsible left sidebar (brief §7.1): workspace name, the search
+ * trigger, My Issues, the Teams section and logout. Teams link to their
+ * Issues list.
  */
-export function Sidebar() {
+export function Sidebar({ onOpenSearch }: { onOpenSearch: () => void }) {
 	const [collapsed, setCollapsed] = useState(() => {
 		try {
 			return localStorage.getItem(STORAGE_KEY) === "1";
@@ -91,7 +94,44 @@ export function Sidebar() {
 				</button>
 			</div>
 
-			<nav className="flex-1 overflow-y-auto p-2" aria-label="Teams">
+			<nav className="flex-1 overflow-y-auto p-2" aria-label="Primary">
+				<ul className="flex flex-col gap-0.5">
+					<li>
+						<button
+							type="button"
+							onClick={onOpenSearch}
+							title="Search"
+							className={
+								"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 " +
+								(collapsed ? "justify-center" : "")
+							}
+						>
+							<Search size={16} className="shrink-0" />
+							{!collapsed && (
+								<>
+									<span className="flex-1 truncate text-left">Search</span>
+									<kbd className="shrink-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 dark:border-neutral-700">
+										/
+									</kbd>
+								</>
+							)}
+						</button>
+					</li>
+					<li>
+						<Link
+							to="/my-issues"
+							title="My Issues"
+							className={
+								"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 " +
+								(collapsed ? "justify-center" : "")
+							}
+						>
+							<User size={16} className="shrink-0" />
+							{!collapsed && <span className="truncate">My Issues</span>}
+						</Link>
+					</li>
+				</ul>
+
 				{!collapsed && (
 					<div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
 						Teams

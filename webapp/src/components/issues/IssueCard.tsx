@@ -18,6 +18,7 @@ export function IssueCard({
 	teamKey,
 	selectable = false,
 	checked = false,
+	selected = false,
 	onToggle,
 	onRestore,
 }: {
@@ -25,6 +26,8 @@ export function IssueCard({
 	teamKey: string;
 	selectable?: boolean;
 	checked?: boolean;
+	/** Keyboard-cursor highlight (ticket 09; separate from bulk selection). */
+	selected?: boolean;
 	onToggle?: (issueId: string) => void;
 	/** Shown only for archived Issues: restore this Issue (owner/Admin). */
 	onRestore?: (issueId: string) => void;
@@ -75,7 +78,7 @@ export function IssueCard({
 	const cardClass =
 		"block min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm hover:shadow dark:border-neutral-800 dark:bg-neutral-900";
 	return (
-		<div className="flex items-start gap-2">
+		<div className="flex items-start gap-2" data-issue-id={issue.id}>
 			{selectable && (
 				<input
 					type="checkbox"
@@ -86,12 +89,18 @@ export function IssueCard({
 				/>
 			)}
 			{archived ? (
-				<div className={cardClass}>{body}</div>
+				<div
+					className={cardClass + (selected ? " ring-2 ring-accent" : "")}
+					aria-current={selected ? "true" : undefined}
+				>
+					{body}
+				</div>
 			) : (
 				<Link
 					to="/teams/$teamKey/issues/$issueId"
 					params={{ teamKey, issueId: issue.id }}
-					className={cardClass}
+					className={cardClass + (selected ? " ring-2 ring-accent" : "")}
+					aria-current={selected ? "true" : undefined}
 				>
 					{body}
 				</Link>

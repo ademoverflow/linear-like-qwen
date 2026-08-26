@@ -92,12 +92,13 @@ export const issueListSchema = z.object({
 export type IssueListPage = z.infer<typeof issueListSchema>;
 
 export async function listIssues(
-	teamId: string,
+	teamId?: string,
 	params: IssueListParams = {},
 ): Promise<IssueListPage> {
-	const query: Record<string, string | number | string[]> = {
-		team_id: teamId,
-	};
+	// Without a Team the scope is the caller's own Teams (My Issues,
+	// ticket 09; archived Teams excluded server-side).
+	const query: Record<string, string | number | string[]> = {};
+	if (teamId) query.team_id = teamId;
 	if (params.state_ids?.length) query.state_id = params.state_ids;
 	if (params.assignee_ids?.length) query.assignee_id = params.assignee_ids;
 	if (params.label_ids?.length) query.label_id = params.label_ids;
@@ -174,6 +175,34 @@ export async function listIssueActivity(issueId: string): Promise<Activity[]> {
 	const data = await api.get(`/issues/${issueId}/activity`);
 	return z.array(activitySchema).parse(data);
 }
+
+/** A search hit: the Issue plus its Team's key and name (ticket 09). */
+export const searchIssueSchema = issueSchema.extend({
+	team_key: z.string(),
+	team_name: z.string(),
+});
+
+export type SearchIssue = z.infer<typeof searchIssueSchema>;
+
+export const searchResultsSchema = z.object({
+	issues: z.array(searchIssueSchema),
+});
+
+export type SearchResults = z.infer<typeof searchResultsSchema>;
+
+/**
+ * Global search across the user's Teams (ticket 09): identifier or title
+ * substring, one capped page (no cursor). Stateful call — the overlay does
+ * not cache results.
+ */
+export async function searchIssues(
+	q: string,
+	signal?: AbortSignal,
+): Promise<SearchResults> {
+	const data = await api.get("/search", { query: { q }, signal });
+	return searchResultsSchema.parse(data);
+}
+
 export async function createIssue(input: {
 	team_id: string;
 	title: string;

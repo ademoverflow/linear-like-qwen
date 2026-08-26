@@ -17,6 +17,7 @@ from core.routers import (
     issues_router,
     labels_router,
     memberships_router,
+    search_router,
     teams_router,
     users_router,
     workflow_states_router,
@@ -77,6 +78,7 @@ api_router.include_router(teams_router)
 api_router.include_router(issues_router)
 api_router.include_router(labels_router)
 api_router.include_router(memberships_router)
+api_router.include_router(search_router)
 api_router.include_router(workflow_states_router)
 api_router.include_router(invitations_router)
 api_router.include_router(users_router)

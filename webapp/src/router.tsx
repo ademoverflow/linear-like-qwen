@@ -15,6 +15,7 @@ import { Admin } from "@/pages/Admin";
 import { Home } from "@/pages/Home";
 import { IssueDetail } from "@/pages/IssueDetail";
 import { Login } from "@/pages/Login";
+import { MyIssues } from "@/pages/MyIssues";
 import { Register } from "@/pages/Register";
 import { TeamBoard } from "@/pages/TeamBoard";
 import { TeamIssues } from "@/pages/TeamIssues";
@@ -120,6 +121,13 @@ function buildRouteTree() {
 		component: TeamIssues,
 	});
 
+	// My Issues: the user's assigned Issues across all Teams (ticket 09).
+	const myIssuesRoute = createRoute({
+		getParentRoute: () => appRoute,
+		path: "/my-issues",
+		component: MyIssues,
+	});
+
 	// Issue detail: list + right-hand panel (ticket 03).
 	const issueDetailRoute = createRoute({
 		getParentRoute: () => appRoute,
@@ -161,6 +169,7 @@ function buildRouteTree() {
 		registerRoute,
 		appRoute.addChildren([
 			homeRoute,
+			myIssuesRoute,
 			teamIssuesRoute,
 			issueDetailRoute,
 			boardRoute,

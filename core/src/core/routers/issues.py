@@ -181,7 +181,7 @@ async def create_issue(
 async def list_issues(  # noqa: PLR0913  # FastAPI query params
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
-    team_id: Annotated[uuid.UUID, Query()],
+    team_id: Annotated[uuid.UUID | None, Query()] = None,
     state_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     assignee_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     label_id: Annotated[list[uuid.UUID] | None, Query()] = None,
@@ -192,6 +192,10 @@ async def list_issues(  # noqa: PLR0913  # FastAPI query params
     include_archived: Annotated[bool, Query()] = False,  # noqa: FBT002  # FastAPI query param
 ) -> IssueListResponse:
     """List a Team's Issues with filters, sort and cursor pagination.
+
+    When ``team_id`` is omitted the scope is every Team the user belongs to
+    (My Issues, brief §6; archived Teams excluded) — the same filters, sort
+    and pagination apply.
 
     Filters: ``state_id``, ``assignee_id``, ``label_id``, ``priority``
     (repeated, combinable). Sort: ``created|updated|priority:asc|desc``
@@ -209,11 +213,18 @@ async def list_issues(  # noqa: PLR0913  # FastAPI query params
         limit=validate_limit(limit),
         include_archived=include_archived,
     )
-    team, issues, next_cursor = await issues_service.list_issues(
-        session, user=user, team_id=team_id, query=query
-    )
+    if team_id is None:
+        teams, issues, next_cursor = await issues_service.list_user_issues(
+            session, user=user, query=query
+        )
+        team_keys = {team.id: team.key for team in teams}
+    else:
+        team, issues, next_cursor = await issues_service.list_issues(
+            session, user=user, team_id=team_id, query=query
+        )
+        team_keys = {team.id: team.key}
     return IssueListResponse(
-        issues=[issue_response(issue, team.key) for issue in issues],
+        issues=[issue_response(issue, team_keys[issue.team_id]) for issue in issues],
         next_cursor=next_cursor,
     )
 

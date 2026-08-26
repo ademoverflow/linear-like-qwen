@@ -215,9 +215,82 @@ async def list_issues(
         raise NotFoundError(MSG_TEAM_NOT_FOUND)
     if query.cursor is not None:
         validate_cursor_for_sort(query.cursor, query.sort)
+    page, next_cursor = await _paginate_issues(
+        session, _issue_list_statement([team.id], query), query
+    )
+    return team, page, next_cursor
+
+
+async def user_teams(session: AsyncSession, user: User) -> list[Team]:
+    """Load the user's (non-archived) Teams via their Memberships (ticket 09).
+
+    Author-relative scope: only the Teams the user belongs to — a workspace
+    Admin is not included in Teams they are not a member of (ADR 0013
+    precedent). Archived Teams are excluded: their Issues are hidden from
+    every list view (ticket 07/08).
+
+    Args:
+        session: The database session.
+        user: The user whose Teams to load.
+
+    Returns:
+        The user's non-archived Teams (an empty list when they belong to
+        none).
+
+    """
+    return list(
+        (
+            await session.exec(
+                select(Team)
+                .join(Membership, Membership.team_id == Team.id)  # type: ignore[arg-type]  # onclause is a Column comparison at runtime
+                .where(
+                    Membership.user_id == user.id,
+                    Team.archived_at.is_(None),  # type: ignore[union-attr]  # SQLModel field is a Column at runtime
+                )
+            )
+        ).all()
+    )
+
+
+async def list_user_issues(
+    session: AsyncSession, *, user: User, query: IssueQuery
+) -> tuple[list[Team], list[Issue], str | None]:
+    """List Issues across every Team the user belongs to (ticket 09, brief §6).
+
+    The My Issues scope: the user's own Memberships only — author-relative
+    by definition (an Admin is not listed into Teams they do not belong
+    to, ADR 0013 precedent). Archived Teams are excluded: their Issues are
+    hidden from every list view (ticket 07/08). A user without Teams gets
+    an empty page (personal views are 404-free). Filters, sort and keyset
+    pagination are shared with ``list_issues``.
+
+    Args:
+        session: The database session.
+        user: The authenticated acting user.
+        query: The parsed, validated list request.
+
+    Returns:
+        The user's (non-archived) Teams, the page of Issues (State/assignee/
+        labels eager-loaded) and the cursor for the next page (``None`` when
+        there is none).
+
+    """
+    team_rows = await user_teams(session, user)
+    if not team_rows:
+        return [], [], None
+    if query.cursor is not None:
+        validate_cursor_for_sort(query.cursor, query.sort)
+    page, next_cursor = await _paginate_issues(
+        session, _issue_list_statement([team.id for team in team_rows], query), query
+    )
+    return team_rows, page, next_cursor
+
+
+def _issue_list_statement(team_ids: list[uuid.UUID], query: IssueQuery) -> SelectOfScalar[Issue]:
+    """Build a cross-Team Issue list statement (loads, filters, sort, cursor)."""
     statement = (
         select(Issue)
-        .where(Issue.team_id == team.id)
+        .where(Issue.team_id.in_(team_ids))  # type: ignore[attr-defined]
         .options(
             joinedload(Issue.state),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
             joinedload(Issue.assignee),  # type: ignore[arg-type,attr-defined]  # Relationship attrs are Columns at runtime
@@ -241,6 +314,13 @@ async def list_issues(
     statement = _apply_sort(statement, query.sort)
     if query.cursor is not None:
         statement = statement.where(_cursor_predicate(query.sort, query.cursor))
+    return statement
+
+
+async def _paginate_issues(
+    session: AsyncSession, statement: SelectOfScalar[Issue], query: IssueQuery
+) -> tuple[list[Issue], str | None]:
+    """Fetch ``limit + 1`` rows and derive the page and the next cursor."""
     statement = statement.limit(query.limit + 1)
     rows = list((await session.exec(statement)).all())
     has_more = len(rows) > query.limit
@@ -252,7 +332,7 @@ async def list_issues(
             query.sort, CursorIssue(last.created_at, last.updated_at, last.priority)
         )
         next_cursor = encode_cursor(query.sort, value, last.number, last.id)
-    return team, page, next_cursor
+    return page, next_cursor
 
 
 def _apply_sort(statement: SelectOfScalar[Issue], sort: SortSpec) -> SelectOfScalar[Issue]:

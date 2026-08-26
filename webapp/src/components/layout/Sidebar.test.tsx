@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "@/api/auth";
 
@@ -23,9 +23,20 @@ vi.mock("@/api/teams", async (importOriginal) => {
 		listTeams: vi.fn(),
 	};
 });
+vi.mock("@/api/issues", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/api/issues")>();
+	return {
+		...actual,
+		listIssues: vi.fn(),
+		listAllIssues: vi.fn(),
+		getIssue: vi.fn(),
+		searchIssues: vi.fn(),
+	};
+});
 
 const { getMe } = await import("@/api/auth");
 const { listTeams } = await import("@/api/teams");
+const { listIssues } = await import("@/api/issues");
 const { renderAt } = await import("../../test/test-router");
 const { meFixture, teamFixture, testTeamId } = await import(
 	"../../test/fixtures"
@@ -75,5 +86,32 @@ describe("Sidebar", () => {
 		renderAt("/teams/ENG/issues");
 		await screen.findByText("Engineering");
 		expect(screen.getByText("Archived")).toBeTruthy();
+	});
+});
+
+describe("Sidebar search + My Issues", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("shows the My Issues link and the search trigger above Teams", async () => {
+		vi.mocked(getMe).mockResolvedValue(meFixture);
+		vi.mocked(listTeams).mockResolvedValue([]);
+		vi.mocked(listIssues).mockResolvedValue({ issues: [], next_cursor: null });
+		renderAt("/my-issues");
+		// The link is visible even for a user with zero Teams.
+		expect(await screen.findByRole("link", { name: "My Issues" })).toBeTruthy();
+		const searchTrigger = screen.getByRole("button", { name: /Search/ });
+		expect(searchTrigger).toBeTruthy();
+	});
+
+	it("opens the search overlay from the sidebar trigger", async () => {
+		vi.mocked(getMe).mockResolvedValue(meFixture);
+		vi.mocked(listTeams).mockResolvedValue([teamFixture]);
+		vi.mocked(listIssues).mockResolvedValue({ issues: [], next_cursor: null });
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("Engineering");
+		fireEvent.click(screen.getByRole("button", { name: /Search/ }));
+		expect(await screen.findByRole("dialog", { name: "Search" })).toBeTruthy();
 	});
 });

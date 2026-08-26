@@ -16,6 +16,8 @@ export const queryKeys = {
 		team: (teamId: string) => ["issues", "team", teamId] as const,
 		page: (teamId: string, filters: string) =>
 			["issues", "page", teamId, filters] as const,
+		// Cross-Team My Issues page (ticket 09).
+		myPage: (sort: string) => ["issues", "my", sort] as const,
 		detail: (issueId: string) => ["issues", "detail", issueId] as const,
 		activity: (issueId: string) => ["issues", "activity", issueId] as const,
 		comments: (issueId: string) => ["issues", "comments", issueId] as const,
