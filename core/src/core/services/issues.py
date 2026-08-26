@@ -211,6 +211,8 @@ async def list_issues(
     team = (await session.exec(select(Team).where(Team.id == team_id))).one_or_none()
     if team is None or not can(actor, Action.TEAM_VIEW, TeamResource(team.id)):
         raise NotFoundError(MSG_TEAM_NOT_FOUND)
+    if team.archived_at is not None:
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
     if query.cursor is not None:
         validate_cursor_for_sort(query.cursor, query.sort)
     statement = (
@@ -333,6 +335,8 @@ async def get_issue(
     actor = await load_actor(session, user)
     issue = await _visible_issue(session, actor=actor, issue_id=issue_id)
     team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+    if team.archived_at is not None:
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
     parent: Issue | None = None
     if issue.parent_id is not None:
         parent = (
@@ -382,6 +386,8 @@ async def update_issue(
             raise ConflictError(MSG_STALE_UPDATE)
 
         team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+        if team.archived_at is not None:
+            raise ForbiddenError(MSG_TEAM_ARCHIVED)
         for field in EDITABLE_FIELDS:
             if field not in changes:
                 continue
@@ -926,6 +932,9 @@ async def list_issue_activity(
     """
     actor = await load_actor(session, user)
     issue = await _visible_issue(session, actor=actor, issue_id=issue_id)
+    team = (await session.exec(select(Team).where(Team.id == issue.team_id))).one()
+    if team.archived_at is not None:
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
     activities = (
         await session.exec(
             select(Activity)

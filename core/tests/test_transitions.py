@@ -222,7 +222,8 @@ def test_transition_archived_team_is_403(client: TestClient, pg: pg_connection) 
     response = _transition(client, issue, done_id)
     assert response.status_code == 403
     assert response.json()["error"]["message"] == ARCHIVED_TEAM_MESSAGE
-    assert client.get(f"{API}/{issue['id']}").json()["state_name"] == "Backlog"
+    # The Issue detail is hidden along with the archived Team (ticket 08).
+    assert client.get(f"{API}/{issue['id']}").status_code == 404
 
 
 def test_deactivated_member_transition_is_403(

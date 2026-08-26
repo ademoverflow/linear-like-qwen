@@ -13,6 +13,7 @@ import { listTeams } from "@/api/teams";
 import { NewTeamDialog } from "@/components/teams/NewTeamDialog";
 import { env } from "@/env";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { isOwnerOrAdmin } from "@/lib/permissions";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
@@ -116,7 +117,16 @@ export function Sidebar() {
 								>
 									{team.key}
 								</span>
-								{!collapsed && <span className="truncate">{team.name}</span>}
+								{!collapsed && (
+									<>
+										<span className="truncate">{team.name}</span>
+										{team.archived_at != null && (
+											<span className="ml-1 shrink-0 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+												Archived
+											</span>
+										)}
+									</>
+								)}
 							</Link>
 							{!collapsed && (
 								<div className="ml-7 mt-0.5 flex flex-col gap-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
@@ -127,6 +137,15 @@ export function Sidebar() {
 									>
 										Board
 									</Link>
+									{isOwnerOrAdmin(me, team.id) && (
+										<Link
+											to="/teams/$teamKey/settings"
+											params={{ teamKey: team.key }}
+											className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+										>
+											Settings
+										</Link>
+									)}
 								</div>
 							)}
 						</li>

@@ -143,6 +143,7 @@ export const statesFixture: WorkflowState[] = [
 		category: "backlog",
 		color: "#a2a2a2",
 		position: 0,
+		version: 1,
 	},
 	{
 		id: "33333333-3333-4333-8333-333333333301",
@@ -150,6 +151,7 @@ export const statesFixture: WorkflowState[] = [
 		category: "unstarted",
 		color: "#737373",
 		position: 1,
+		version: 1,
 	},
 	{
 		id: "33333333-3333-4333-8333-333333333302",
@@ -157,6 +159,7 @@ export const statesFixture: WorkflowState[] = [
 		category: "started",
 		color: "#f2c94c",
 		position: 2,
+		version: 1,
 	},
 	{
 		id: "33333333-3333-4333-8333-333333333303",
@@ -164,6 +167,7 @@ export const statesFixture: WorkflowState[] = [
 		category: "started",
 		color: "#fbc64d",
 		position: 3,
+		version: 1,
 	},
 	{
 		id: doneStateId,
@@ -171,6 +175,7 @@ export const statesFixture: WorkflowState[] = [
 		category: "completed",
 		color: "#4cb371",
 		position: 4,
+		version: 1,
 	},
 	{
 		id: "33333333-3333-4333-8333-333333333305",
@@ -178,5 +183,6 @@ export const statesFixture: WorkflowState[] = [
 		category: "canceled",
 		color: "#d98c8c",
 		position: 5,
+		version: 1,
 	},
 ];

@@ -3,13 +3,20 @@
 from datetime import UTC, datetime
 
 import pytest
-from core.domain.errors import RuleViolationError
+from core.domain.errors import RuleViolationError, ValidationError
 from core.domain.workflow import (
     CATEGORIES,
     DEFAULT_WORKFLOW_STATES,
+    Category,
     WorkflowStateRule,
+    assert_migration_target_same_category,
     select_default_state,
     transition,
+    validate_category,
+    validate_category_change,
+    validate_state_color,
+    validate_state_deletion,
+    validate_state_name,
 )
 
 
@@ -107,3 +114,158 @@ def test_transition_full_category_matrix_any_to_any() -> None:
         )
         assert effect.completed_at == (now if target_category == "completed" else None)
         assert effect.canceled_at == (now if target_category == "canceled" else None)
+
+
+def _state(name: str, category: Category, position: int) -> WorkflowStateRule:
+    return WorkflowStateRule(name, category, "#222222", position)
+
+
+# ---------------------------------------------------------------------------
+# Category minimum on delete (brief §4.3)
+# ---------------------------------------------------------------------------
+
+
+def test_deleting_the_only_started_state_is_blocked() -> None:
+    """A Team must keep at least one started State (ticket line 4)."""
+    states = [
+        _state("Todo", "unstarted", 0),
+        _state("Doing", "started", 1),
+        _state("Done", "completed", 2),
+        _state("Nope", "canceled", 3),
+    ]
+    with pytest.raises(RuleViolationError, match="started"):
+        validate_state_deletion(states, states[1])
+
+
+def test_deleting_one_of_two_started_states_is_allowed() -> None:
+    """The minimum is per category; one of two is fine."""
+    states = [
+        _state("Todo", "unstarted", 0),
+        _state("Doing", "started", 1),
+        _state("Review", "started", 2),
+        _state("Done", "completed", 3),
+        _state("Nope", "canceled", 4),
+    ]
+    validate_state_deletion(states, states[1])
+    validate_state_deletion(states, states[2])
+
+
+def test_deleting_the_only_backlog_state_is_allowed() -> None:
+    """Backlog is not in the minimum (brief §4.3)."""
+    states = [
+        _state("Backlog", "backlog", 0),
+        _state("Todo", "unstarted", 1),
+        _state("Doing", "started", 2),
+        _state("Done", "completed", 3),
+        _state("Nope", "canceled", 4),
+    ]
+    validate_state_deletion(states, states[0])
+
+
+def test_deleting_a_state_reports_the_missing_required_category() -> None:
+    """The error names the first required category left without a State."""
+    states = [_state("Doing", "started", 0), _state("Done", "completed", 1)]
+    with pytest.raises(RuleViolationError, match="unstarted"):
+        validate_state_deletion(states, states[1])
+
+
+def test_default_workflow_allows_deleting_backlog_and_a_started_state() -> None:
+    """Backlog is not required, and the default has two started States."""
+    backlog = next(s for s in DEFAULT_WORKFLOW_STATES if s.category == "backlog")
+    started = [s for s in DEFAULT_WORKFLOW_STATES if s.category == "started"]
+    validate_state_deletion(list(DEFAULT_WORKFLOW_STATES), backlog)
+    validate_state_deletion(list(DEFAULT_WORKFLOW_STATES), started[0])
+
+
+def test_default_workflow_blocks_deleting_the_only_unstarted_state() -> None:
+    """The seeded default has exactly one unstarted State (Todo)."""
+    todo = next(s for s in DEFAULT_WORKFLOW_STATES if s.category == "unstarted")
+    with pytest.raises(RuleViolationError, match="unstarted"):
+        validate_state_deletion(list(DEFAULT_WORKFLOW_STATES), todo)
+
+
+# ---------------------------------------------------------------------------
+# Category minimum on category change (brief §4.3)
+# ---------------------------------------------------------------------------
+
+
+def test_changing_the_only_canceled_state_away_is_blocked() -> None:
+    """Re-categorising the last canceled State would empty the category."""
+    states = [
+        _state("Todo", "unstarted", 0),
+        _state("Doing", "started", 1),
+        _state("Done", "completed", 2),
+        _state("Nope", "canceled", 3),
+    ]
+    with pytest.raises(RuleViolationError, match="canceled"):
+        validate_category_change(states, states[3], "started")
+
+
+def test_changing_one_of_two_canceled_states_away_is_allowed() -> None:
+    """The minimum is one State per category; a second canceled State may move."""
+    states = [
+        _state("Todo", "unstarted", 0),
+        _state("Doing", "started", 1),
+        _state("Done", "completed", 2),
+        _state("Nope", "canceled", 3),
+        _state("Also Nope", "canceled", 4),
+    ]
+    validate_category_change(states, states[3], "backlog")
+
+
+def test_changing_a_backlog_state_category_is_allowed() -> None:
+    """Backlog is not required, so its States may be re-categorised freely."""
+    states = [
+        _state("Backlog", "backlog", 0),
+        _state("Todo", "unstarted", 1),
+        _state("Doing", "started", 2),
+        _state("Done", "completed", 3),
+        _state("Nope", "canceled", 4),
+    ]
+    validate_category_change(states, states[0], "unstarted")
+
+
+# ---------------------------------------------------------------------------
+# Delete-with-migrate target (brief §4.3)
+# ---------------------------------------------------------------------------
+
+
+def test_migration_target_must_match_the_source_category() -> None:
+    """A wrong-category target is invalid input (400), not an invariant (422)."""
+    source = _state("Doing", "started", 1)
+    assert_migration_target_same_category(source, _state("Review", "started", 3))
+    with pytest.raises(ValidationError, match="same category"):
+        assert_migration_target_same_category(source, _state("Done", "completed", 2))
+
+
+# ---------------------------------------------------------------------------
+# State name / colour input rules
+# ---------------------------------------------------------------------------
+
+
+def test_category_validation_accepts_only_the_five() -> None:
+    """Only the five canonical category values are accepted."""
+    for category in CATEGORIES:
+        assert validate_category(category) == category
+    for invalid in ("", "in-progress", "STARTED", "done "):
+        with pytest.raises(ValidationError):
+            validate_category(invalid)
+
+
+def test_state_name_is_trimmed_and_bounded() -> None:
+    """Names are trimmed and must be 1-50 characters."""
+    assert validate_state_name("  In Progress  ") == "In Progress"
+    assert len(validate_state_name("x" * 50)) == 50
+    with pytest.raises(ValidationError):
+        validate_state_name("   ")
+    with pytest.raises(ValidationError):
+        validate_state_name("x" * 51)
+
+
+def test_state_color_must_be_hex() -> None:
+    """Colours must be #RRGGBB hex strings."""
+    assert validate_state_color("#f2c94c") == "#f2c94c"
+    assert validate_state_color("#F2C94C") == "#F2C94C"
+    for invalid in ("f2c94c", "#f2c94", "#f2c94cc", "f2c94z", ""):
+        with pytest.raises(ValidationError):
+            validate_state_color(invalid)

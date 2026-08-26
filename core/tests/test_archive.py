@@ -381,8 +381,8 @@ def test_hard_delete_works_for_archived_issue_in_archived_team(
         client.request("DELETE", f"{API}/{issue['id']}", json={"identifier": "ENG-1"}).status_code
         == 204
     )
-    included = client.get(API, params={"team_id": team["id"], "include_archived": "true"}).json()
-    assert included["issues"] == []
+    # The Team's Issue views are hidden while it is archived (ticket 08).
+    assert client.get(API, params={"team_id": team["id"]}).status_code == 404
 
 
 def test_hard_delete_with_wrong_identifier_is_400(client: TestClient) -> None:

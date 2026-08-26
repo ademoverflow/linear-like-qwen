@@ -13,6 +13,8 @@ ADMIN_ONLY_ACTIONS = (
     Action.USER_PROMOTE,
     Action.USER_DEMOTE,
     Action.ISSUE_DELETE,
+    Action.TEAM_ARCHIVE,
+    Action.TEAM_RESTORE,
 )
 
 

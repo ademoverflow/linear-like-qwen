@@ -39,6 +39,16 @@ class Action(StrEnum):
     ISSUE_ARCHIVE = "issue.archive"
     ISSUE_RESTORE = "issue.restore"
     ISSUE_DELETE = "issue.delete"
+    TEAM_UPDATE = "team.update"
+    TEAM_ARCHIVE = "team.archive"
+    TEAM_RESTORE = "team.restore"
+    MEMBER_ADD = "member.add"
+    MEMBER_ROLE = "member.role"
+    MEMBER_REMOVE = "member.remove"
+    MEMBER_CANDIDATES = "member.candidates"
+    STATE_CREATE = "state.create"
+    STATE_EDIT = "state.edit"
+    STATE_DELETE = "state.delete"
 
 
 @dataclass(frozen=True)
@@ -68,7 +78,9 @@ Resource = TeamResource | IssueResource | None
 
 # Workspace-level actions that only workspace Admins may perform
 # (brief §5.2; non-Admins are denied regardless of their Team roles).
-ADMIN_ONLY_ACTIONS: frozenset[Action] = frozenset({Action.TEAM_CREATE, Action.ISSUE_DELETE})
+ADMIN_ONLY_ACTIONS: frozenset[Action] = frozenset(
+    {Action.TEAM_CREATE, Action.ISSUE_DELETE, Action.TEAM_ARCHIVE, Action.TEAM_RESTORE}
+)
 
 # Team actions that require the owner role (brief §5.2; workspace Admins
 # bypass the check, as always).
@@ -79,6 +91,14 @@ OWNER_ONLY_ACTIONS: frozenset[Action] = frozenset(
         Action.LABEL_DELETE,
         Action.ISSUE_ARCHIVE,
         Action.ISSUE_RESTORE,
+        Action.TEAM_UPDATE,
+        Action.MEMBER_ADD,
+        Action.MEMBER_ROLE,
+        Action.MEMBER_REMOVE,
+        Action.MEMBER_CANDIDATES,
+        Action.STATE_CREATE,
+        Action.STATE_EDIT,
+        Action.STATE_DELETE,
     }
 )
 

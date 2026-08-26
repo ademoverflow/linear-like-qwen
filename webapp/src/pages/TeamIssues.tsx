@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import {
 	type IssueListPage,
@@ -194,6 +194,26 @@ export function TeamIssues() {
 				<p className="mt-2 text-sm text-neutral-500">
 					No Team with the key {teamKey} is visible to you.
 				</p>
+			</CenteredMessage>
+		);
+	}
+	if (team.archived_at != null) {
+		return (
+			<CenteredMessage>
+				<h1 className="text-lg font-semibold">This Team is archived</h1>
+				<p className="mt-2 text-sm text-neutral-500">
+					Its Issues are hidden from the list. A workspace Admin can restore the
+					Team from the settings.
+				</p>
+				{isOwnerOrAdmin(me, team.id) && (
+					<Link
+						to="/teams/$teamKey/settings"
+						params={{ teamKey: team.key }}
+						className="mt-4 rounded-md px-3 py-1.5 text-sm text-accent underline-offset-2 hover:underline"
+					>
+						Open Team settings
+					</Link>
+				)}
 			</CenteredMessage>
 		);
 	}

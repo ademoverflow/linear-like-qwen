@@ -1,4 +1,4 @@
-"""Teams router (thin): create and list Teams."""
+"""Teams router (thin): create, list, edit, archive and restore Teams."""
 
 import uuid
 from datetime import datetime
@@ -22,7 +22,14 @@ class TeamCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=100)
     key: str = Field(min_length=2, max_length=5)
-    description: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=5000)
+
+
+class TeamUpdateRequest(BaseModel):
+    """Body for ``PATCH /teams/{team_id}`` (the key is immutable)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=5000)
 
 
 class TeamResponse(BaseModel):
@@ -35,25 +42,6 @@ class TeamResponse(BaseModel):
     archived_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-
-class TeamMemberResponse(BaseModel):
-    """A Team member as exposed by the API (ticket 03 assignee picker)."""
-
-    id: uuid.UUID
-    display_name: str
-    avatar_url: str | None
-    role: str
-
-
-class TeamStateResponse(BaseModel):
-    """A Workflow State as exposed by the API (board columns; ADR 0011)."""
-
-    id: uuid.UUID
-    name: str
-    category: str
-    color: str
-    position: int
 
 
 def team_response(team: Team) -> TeamResponse:
@@ -96,40 +84,55 @@ async def list_teams(
     return [team_response(team) for team in teams]
 
 
-@router.get("/{team_id}/states")
-async def list_team_states(
+@router.get("/{team_id}")
+async def get_team(
     team_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> list[TeamStateResponse]:
-    """List a Team's Workflow States in position order (Team member or Admin)."""
-    states = await teams_service.list_team_states(session, user=user, team_id=team_id)
-    return [
-        TeamStateResponse(
-            id=state.id,
-            name=state.name,
-            category=state.category,
-            color=state.color,
-            position=state.position,
-        )
-        for state in states
-    ]
+) -> TeamResponse:
+    """Fetch a Team's detail (Team member or Admin; archived → 404 for non-Admins)."""
+    team = await teams_service.get_team(session, user=user, team_id=team_id)
+    return team_response(team)
 
 
-@router.get("/{team_id}/members")
-async def list_team_members(
+@router.patch("/{team_id}")
+async def update_team(
+    team_id: uuid.UUID,
+    payload: TeamUpdateRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TeamResponse:
+    """Edit a Team's name and/or description (owner or Admin; key immutable).
+
+    The name is trimmed and capped at 100 characters; an explicit
+    ``description = None`` clears the description.
+    """
+    changes = {
+        name: getattr(payload, name)
+        for name in payload.model_fields_set
+        if name in teams_service.TEAM_UPDATE_FIELDS
+    }
+    team = await teams_service.update_team(session, user=user, team_id=team_id, changes=changes)
+    return team_response(team)
+
+
+@router.post("/{team_id}/archive")
+async def archive_team(
     team_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> list[TeamMemberResponse]:
-    """List a Team's members with their roles (Team member or Admin)."""
-    members = await teams_service.list_team_members(session, user=user, team_id=team_id)
-    return [
-        TeamMemberResponse(
-            id=member.id,
-            display_name=member.display_name or member.email,
-            avatar_url=member.avatar_url,
-            role=role.value,
-        )
-        for member, role in members
-    ]
+) -> TeamResponse:
+    """Archive a Team (Admin only; reversible via restore)."""
+    team = await teams_service.archive_team(session, user=user, team_id=team_id)
+    return team_response(team)
+
+
+@router.post("/{team_id}/restore")
+async def restore_team(
+    team_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TeamResponse:
+    """Restore an archived Team (Admin only)."""
+    team = await teams_service.restore_team(session, user=user, team_id=team_id)
+    return team_response(team)

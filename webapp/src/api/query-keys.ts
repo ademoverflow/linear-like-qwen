@@ -6,6 +6,8 @@ export const queryKeys = {
 	},
 	teams: {
 		all: () => ["teams"] as const,
+		detail: (teamId: string) => ["teams", "detail", teamId] as const,
+		candidates: (teamId: string) => ["teams", "candidates", teamId] as const,
 		members: (teamId: string) => ["teams", "members", teamId] as const,
 		states: (teamId: string) => ["teams", "states", teamId] as const,
 		labels: (teamId: string) => ["teams", "labels", teamId] as const,

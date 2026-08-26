@@ -70,6 +70,14 @@ def test_owner_only_actions_require_owner_role() -> None:
         Action.LABEL_DELETE,
         Action.ISSUE_ARCHIVE,
         Action.ISSUE_RESTORE,
+        Action.TEAM_UPDATE,
+        Action.MEMBER_ADD,
+        Action.MEMBER_ROLE,
+        Action.MEMBER_REMOVE,
+        Action.MEMBER_CANDIDATES,
+        Action.STATE_CREATE,
+        Action.STATE_EDIT,
+        Action.STATE_DELETE,
     ):
         assert can(owner, action, TeamResource(TEAM_A))
         assert can(_actor(is_admin=True), action, TeamResource(TEAM_A))

@@ -16,8 +16,10 @@ from core.routers import (
     invitations_router,
     issues_router,
     labels_router,
+    memberships_router,
     teams_router,
     users_router,
+    workflow_states_router,
 )
 from core.settings import get_settings
 
@@ -74,6 +76,8 @@ api_router.include_router(comments_router)
 api_router.include_router(teams_router)
 api_router.include_router(issues_router)
 api_router.include_router(labels_router)
+api_router.include_router(memberships_router)
+api_router.include_router(workflow_states_router)
 api_router.include_router(invitations_router)
 api_router.include_router(users_router)
 app.include_router(api_router)

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { listAllIssues } from "@/api/issues";
 import { queryKeys } from "@/api/query-keys";
 import { listTeamStates, listTeams } from "@/api/teams";
@@ -7,6 +7,8 @@ import { Board } from "@/components/issues/Board";
 import { useNewIssue } from "@/components/layout/new-issue-context";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { isOwnerOrAdmin } from "@/lib/permissions";
 
 /**
  * Team Board (brief §7.2.4, ticket 04): a Kanban with one column per
@@ -23,6 +25,7 @@ export function TeamBoard() {
 		queryFn: listTeams,
 	});
 	const team = teamsQuery.data?.find((item) => item.key === teamKey);
+	const me = useCurrentUser().data;
 
 	const statesQuery = useQuery({
 		queryKey: queryKeys.teams.states(team?.id ?? ""),
@@ -45,6 +48,26 @@ export function TeamBoard() {
 				<p className="mt-2 text-sm text-neutral-500">
 					No Team with the key {teamKey} is visible to you.
 				</p>
+			</CenteredMessage>
+		);
+	}
+	if (team.archived_at != null) {
+		return (
+			<CenteredMessage>
+				<h1 className="text-lg font-semibold">This Team is archived</h1>
+				<p className="mt-2 text-sm text-neutral-500">
+					The Board is hidden while the Team is archived. A workspace Admin can
+					restore it from the settings.
+				</p>
+				{isOwnerOrAdmin(me, team.id) && (
+					<Link
+						to="/teams/$teamKey/settings"
+						params={{ teamKey: team.key }}
+						className="mt-4 rounded-md px-3 py-1.5 text-sm text-accent underline-offset-2 hover:underline"
+					>
+						Open Team settings
+					</Link>
+				)}
 			</CenteredMessage>
 		);
 	}

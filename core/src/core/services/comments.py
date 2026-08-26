@@ -22,7 +22,7 @@ from core.models.team import Team
 from core.models.user import User
 from core.services.activity import record_activity
 from core.services.actors import load_actor
-from core.services.issues import MSG_TEAM_ARCHIVED, _visible_issue
+from core.services.issues import MSG_TEAM_ARCHIVED, MSG_TEAM_NOT_FOUND, _visible_issue
 
 ACTIVITY_COMMENT_CREATED = "comment.created"
 ACTIVITY_COMMENT_UPDATED = "comment.updated"
@@ -104,6 +104,9 @@ async def list_issue_comments(
     """
     actor = await load_actor(session, user)
     issue = await _visible_issue(session, actor=actor, issue_id=issue_id)
+    team = await _load_team(session, issue.team_id)
+    if team.archived_at is not None:
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
     comments = (
         await session.exec(
             select(Comment)

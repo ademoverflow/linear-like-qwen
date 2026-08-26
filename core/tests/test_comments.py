@@ -283,8 +283,8 @@ def test_archived_team_rejects_comment_writes(
     assert (
         other.delete(f"{COMMENTS.format(issue_id=issue['id'])}/{created['id']}").status_code == 403
     )
-    # Reads still work (consistent with the other read endpoints).
-    assert other.get(COMMENTS.format(issue_id=issue["id"])).status_code == 200
+    # Reads are hidden along with the archived Team (ticket 08).
+    assert other.get(COMMENTS.format(issue_id=issue["id"])).status_code == 404
 
 
 def test_deactivated_user_cannot_comment(

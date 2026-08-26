@@ -18,6 +18,7 @@ import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { TeamBoard } from "@/pages/TeamBoard";
 import { TeamIssues } from "@/pages/TeamIssues";
+import { TeamSettings } from "@/pages/TeamSettings";
 
 export type AppRouterContext = { queryClient: QueryClient };
 
@@ -133,6 +134,14 @@ function buildRouteTree() {
 		component: TeamBoard,
 	});
 
+	// Team settings: name/description, members, labels, Workflow editor
+	// (ticket 08, brief §7.2.6).
+	const teamSettingsRoute = createRoute({
+		getParentRoute: () => appRoute,
+		path: "/teams/$teamKey/settings",
+		component: TeamSettings,
+	});
+
 	// Admin screen: workspace Admins only (brief §7.1, §5.3).
 	const adminRoute = createRoute({
 		getParentRoute: () => appRoute,
@@ -155,6 +164,7 @@ function buildRouteTree() {
 			teamIssuesRoute,
 			issueDetailRoute,
 			boardRoute,
+			teamSettingsRoute,
 			adminRoute,
 		]),
 	]);

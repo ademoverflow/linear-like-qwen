@@ -22,6 +22,7 @@ from core.models.user import User
 from core.services.actors import load_actor
 
 MSG_TEAM_NOT_FOUND = "Team not found"
+MSG_TEAM_ARCHIVED = "Team is archived"
 MSG_LABEL_NOT_FOUND = "Label not found"
 MSG_LABEL_NAME_EXISTS = "A Label with this name already exists"
 MSG_LABEL_UPDATE_EMPTY = "Provide a name and/or a colour to update"
@@ -31,10 +32,20 @@ MSG_LABELS_OWNER_ONLY = "Only a Team owner can manage Labels"
 LABEL_UPDATE_FIELDS: tuple[str, ...] = ("name", "color")
 
 
-async def _visible_team(session: AsyncSession, *, actor: Actor, team_id: uuid.UUID) -> Team:
-    """Load a Team the actor may see (non-members get 404, not 403)."""
+async def _visible_team(
+    session: AsyncSession, *, actor: Actor, team_id: uuid.UUID, writable: bool = False
+) -> Team:
+    """Load a Team the actor may see (non-members get 404, not 403).
+
+    Archived Teams are a 404 for reads and a 403 for writes (ticket 08:
+    hidden everywhere, writes refused while archived).
+    """
     team = (await session.exec(select(Team).where(Team.id == team_id))).one_or_none()
     if team is None or not can(actor, Action.TEAM_VIEW, TeamResource(team.id)):
+        raise NotFoundError(MSG_TEAM_NOT_FOUND)
+    if team.archived_at is not None:
+        if writable:
+            raise ForbiddenError(MSG_TEAM_ARCHIVED)
         raise NotFoundError(MSG_TEAM_NOT_FOUND)
     return team
 
@@ -97,7 +108,7 @@ async def create_team_label(
     """
     async with session.begin():
         actor = await load_actor(session, user)
-        team = await _visible_team(session, actor=actor, team_id=team_id)
+        team = await _visible_team(session, actor=actor, team_id=team_id, writable=True)
         if not can(actor, Action.LABEL_CREATE, TeamResource(team.id)):
             raise ForbiddenError(MSG_LABELS_OWNER_ONLY)
         clean_name = validate_label_name(name)
@@ -147,7 +158,7 @@ async def update_team_label(
     """
     async with session.begin():
         actor = await load_actor(session, user)
-        team = await _visible_team(session, actor=actor, team_id=team_id)
+        team = await _visible_team(session, actor=actor, team_id=team_id, writable=True)
         if not can(actor, Action.LABEL_EDIT, TeamResource(team.id)):
             raise ForbiddenError(MSG_LABELS_OWNER_ONLY)
         label = (
@@ -205,7 +216,7 @@ async def delete_team_label(
     """
     async with session.begin():
         actor = await load_actor(session, user)
-        team = await _visible_team(session, actor=actor, team_id=team_id)
+        team = await _visible_team(session, actor=actor, team_id=team_id, writable=True)
         if not can(actor, Action.LABEL_DELETE, TeamResource(team.id)):
             raise ForbiddenError(MSG_LABELS_OWNER_ONLY)
         label = (
