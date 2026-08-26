@@ -81,17 +81,15 @@ export function Dialog({ open, title, onClose, children }: DialogProps) {
 				aria-modal="true"
 				aria-label={title}
 				tabIndex={-1}
-				className="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-4 shadow-xl outline-none dark:border-neutral-800 dark:bg-neutral-900"
+				className="w-full max-w-md rounded-lg border border-line bg-surface p-4 shadow-xl outline-none"
 			>
 				<div className="mb-3 flex items-center justify-between">
-					<h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-						{title}
-					</h2>
+					<h2 className="text-sm font-semibold text-foreground">{title}</h2>
 					<button
 						type="button"
 						onClick={onClose}
 						aria-label="Close dialog"
-						className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+						className="rounded p-1 text-faint hover:bg-surface-subtle hover:text-foreground"
 					>
 						<X size={16} />
 					</button>

@@ -33,7 +33,7 @@ export function Home() {
 				<h1 className="text-lg font-semibold">No Teams yet</h1>
 				{me?.is_admin ? (
 					<>
-						<p className="mt-2 text-sm text-neutral-500">
+						<p className="mt-2 text-sm text-muted">
 							Create the first Team for this Workspace. It comes with the
 							default Workflow, and you become its owner.
 						</p>
@@ -42,7 +42,7 @@ export function Home() {
 						</div>
 					</>
 				) : (
-					<p className="mt-2 text-sm text-neutral-500">
+					<p className="mt-2 text-sm text-muted">
 						Ask a workspace Admin to create a Team and add you to it.
 					</p>
 				)}

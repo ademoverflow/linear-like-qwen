@@ -73,7 +73,7 @@ function LabelRow({
 				onBlur={() => {
 					if (color !== label.color) update.mutate({ color });
 				}}
-				className="h-7 w-7 shrink-0 cursor-pointer rounded border border-neutral-300 bg-white p-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+				className="h-7 w-7 shrink-0 cursor-pointer rounded border border-neutral-300 bg-surface p-0.5 dark:border-neutral-700"
 			/>
 			<input
 				type="text"
@@ -85,7 +85,7 @@ function LabelRow({
 				onKeyDown={(event) => {
 					if (event.key === "Enter") event.currentTarget.blur();
 				}}
-				className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-surface px-2 py-1 text-sm text-foreground focus:border-accent dark:border-neutral-700"
 			/>
 			<Button
 				variant="ghost"
@@ -153,7 +153,7 @@ export function LabelManager({ teamId }: { teamId: string }) {
 					aria-label="New Label colour"
 					value={color}
 					onChange={(event) => setColor(event.target.value)}
-					className="h-9 w-9 shrink-0 cursor-pointer rounded-md border border-neutral-300 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-900"
+					className="h-9 w-9 shrink-0 cursor-pointer rounded-md border border-neutral-300 bg-surface p-1 dark:border-neutral-700"
 				/>
 				<input
 					type="text"
@@ -162,7 +162,7 @@ export function LabelManager({ teamId }: { teamId: string }) {
 					maxLength={50}
 					placeholder="Label name"
 					onChange={(event) => setName(event.target.value)}
-					className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-surface px-2 text-sm text-foreground focus:border-accent dark:border-neutral-700"
 				/>
 				<Button type="submit" disabled={name.trim().length === 0}>
 					Add

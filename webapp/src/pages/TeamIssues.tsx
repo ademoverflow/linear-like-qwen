@@ -22,6 +22,7 @@ import {
 } from "@/components/issues/IssueFilterDialog";
 import { IssueQuickActions } from "@/components/issues/IssueQuickActions";
 import { LabelManagerDialog } from "@/components/issues/LabelManagerDialog";
+import { StateDot } from "@/components/issues/StateDot";
 import { useNewIssue } from "@/components/layout/new-issue-context";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -235,7 +236,7 @@ export function TeamIssues() {
 		return (
 			<CenteredMessage>
 				<h1 className="text-lg font-semibold">Team not found</h1>
-				<p className="mt-2 text-sm text-neutral-500">
+				<p className="mt-2 text-sm text-muted">
 					No Team with the key {teamKey} is visible to you.
 				</p>
 			</CenteredMessage>
@@ -245,7 +246,7 @@ export function TeamIssues() {
 		return (
 			<CenteredMessage>
 				<h1 className="text-lg font-semibold">This Team is archived</h1>
-				<p className="mt-2 text-sm text-neutral-500">
+				<p className="mt-2 text-sm text-muted">
 					Its Issues are hidden from the list. A workspace Admin can restore the
 					Team from the settings.
 				</p>
@@ -264,11 +265,11 @@ export function TeamIssues() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90">
+			<div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/90 px-4 py-2 backdrop-blur">
 				<nav aria-label="Breadcrumb">
 					<span className="text-sm font-semibold">{team.key}</span>
-					<span className="mx-1.5 text-neutral-400">›</span>
-					<span className="text-sm text-neutral-500">Issues</span>
+					<span className="mx-1.5 text-faint">›</span>
+					<span className="text-sm text-muted">Issues</span>
 				</nav>
 				<div className="ml-auto flex flex-wrap items-center gap-2">
 					<Button
@@ -346,7 +347,7 @@ export function TeamIssues() {
 				) : issuesQuery.isError ? (
 					<CenteredMessage>
 						<h1 className="text-lg font-semibold">Could not load Issues</h1>
-						<p className="mt-2 text-sm text-neutral-500">
+						<p className="mt-2 text-sm text-muted">
 							{issuesQuery.error instanceof Error
 								? issuesQuery.error.message
 								: "Unknown error"}
@@ -369,7 +370,7 @@ export function TeamIssues() {
 								Clear filters
 							</Button>
 						) : (
-							<p className="mt-2 text-sm text-neutral-500">
+							<p className="mt-2 text-sm text-muted">
 								Press{" "}
 								<kbd className="rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs dark:border-neutral-700">
 									C
@@ -387,15 +388,9 @@ export function TeamIssues() {
 								className="flex flex-col gap-2"
 							>
 								<div className="flex items-center gap-2">
-									<span
-										className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-										style={{ backgroundColor: state.color }}
-										aria-hidden
-									/>
+									<StateDot color={state.color} category={state.category} />
 									<span className="text-sm font-semibold">{state.name}</span>
-									<span className="text-xs text-neutral-400">
-										{items.length}
-									</span>
+									<span className="text-xs text-faint">{items.length}</span>
 								</div>
 								{items.map((issue) => (
 									<IssueCard
@@ -476,7 +471,7 @@ export function TeamIssues() {
 			)}
 
 			{selecting && selected.size > 0 && (
-				<div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+				<div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-2 shadow-lg">
 					<span className="text-sm font-medium">{selected.size} selected</span>
 					<select
 						aria-label="Set state"

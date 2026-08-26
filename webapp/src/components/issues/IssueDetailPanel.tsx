@@ -16,6 +16,7 @@ import { PRIORITY_OPTIONS } from "@/lib/priorities";
 import { IssueFeed } from "./IssueFeed";
 import { LabelChip } from "./LabelChip";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { StateDot } from "./StateDot";
 
 const ESTIMATE_OPTIONS = [
 	{ value: "", label: "No estimate" },
@@ -98,20 +99,14 @@ export function IssueDetailPanel({
 				<Link
 					to="/teams/$teamKey/issues"
 					params={{ teamKey }}
-					className="rounded-md px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+					className="rounded-md px-2 py-1 text-sm text-muted hover:bg-surface-subtle"
 				>
 					‹ {teamKey} / Issues
 				</Link>
-				<span className="font-mono text-xs text-neutral-500">
-					{issue.identifier}
-				</span>
+				<span className="font-mono text-xs text-muted">{issue.identifier}</span>
 				<span className="flex-1" />
-				<span
-					className="inline-block h-2.5 w-2.5 rounded-full"
-					style={{ backgroundColor: issue.state_color }}
-					aria-hidden
-				/>
-				<span className="text-xs text-neutral-500">{issue.state_name}</span>
+				<StateDot color={issue.state_color} category={issue.state_category} />
+				<span className="text-xs text-muted">{issue.state_name}</span>
 				{canArchive && (
 					<Button
 						variant="ghost"
@@ -158,9 +153,7 @@ export function IssueDetailPanel({
 					}))}
 				/>
 				<div className="flex flex-col gap-1.5">
-					<span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-						Labels
-					</span>
+					<span className="text-sm font-medium text-foreground">Labels</span>
 					<button
 						type="button"
 						aria-label="Change labels"
@@ -168,10 +161,10 @@ export function IssueDetailPanel({
 							setSelectedLabelIds(issue.labels.map((label) => label.id));
 							setLabelPickerOpen(true);
 						}}
-						className="flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2 text-sm focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+						className="flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-surface px-2 text-sm focus:border-accent dark:border-neutral-700"
 					>
 						{issue.labels.length === 0 ? (
-							<span className="text-neutral-400">No labels</span>
+							<span className="text-faint">No labels</span>
 						) : (
 							issue.labels.map((label) => (
 								<LabelChip key={label.id} label={label} compact />
@@ -215,7 +208,7 @@ export function IssueDetailPanel({
 				<div className="flex flex-col gap-1.5">
 					<label
 						htmlFor={dueDateId}
-						className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+						className="text-sm font-medium text-foreground"
 					>
 						Due date
 					</label>
@@ -230,7 +223,7 @@ export function IssueDetailPanel({
 								due_date: event.target.value === "" ? null : event.target.value,
 							})
 						}
-						className="h-9 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+						className="h-9 rounded-md border border-neutral-300 bg-surface px-2 text-sm text-foreground focus:border-accent dark:border-neutral-700"
 					/>
 				</div>
 				<Select
@@ -250,7 +243,7 @@ export function IssueDetailPanel({
 				title="Delete this Issue?"
 				onClose={() => setDeleteOpen(false)}
 			>
-				<p className="text-sm text-neutral-600 dark:text-neutral-300">
+				<p className="text-sm text-foreground">
 					This permanently deletes {issue.identifier} — including its children,
 					Comments and Activity. This cannot be undone.
 				</p>
@@ -324,13 +317,13 @@ function LabelPicker({
 	return (
 		<Dialog open={open} title="Labels" onClose={onClose}>
 			{labels.length === 0 ? (
-				<p className="text-sm text-neutral-500">This Team has no Labels yet.</p>
+				<p className="text-sm text-muted">This Team has no Labels yet.</p>
 			) : (
 				<div className="flex flex-col gap-1.5">
 					{labels.map((label) => (
 						<label
 							key={label.id}
-							className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300"
+							className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
 						>
 							<input
 								type="checkbox"
@@ -392,7 +385,7 @@ function InlineTitle({
 					setEditing(false);
 					if (draft.trim() !== value) onSave(draft);
 				}}
-				className="w-full rounded-md border border-neutral-300 bg-white px-2 py-1 text-lg font-semibold focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+				className="w-full rounded-md border border-neutral-300 bg-surface px-2 py-1 text-lg font-semibold focus:border-accent dark:border-neutral-700"
 			/>
 		);
 	}
@@ -404,7 +397,7 @@ function InlineTitle({
 				setDraft(value);
 				setEditing(true);
 			}}
-			className="w-full rounded-md px-2 py-1 text-left text-lg font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+			className="w-full rounded-md px-2 py-1 text-left text-lg font-semibold hover:bg-surface-subtle"
 		>
 			{value}
 		</button>
@@ -435,7 +428,7 @@ function DescriptionEditor({
 				{description ? (
 					<Markdown content={description} />
 				) : (
-					<p className="text-sm text-neutral-500">No description.</p>
+					<p className="text-sm text-muted">No description.</p>
 				)}
 			</section>
 		);

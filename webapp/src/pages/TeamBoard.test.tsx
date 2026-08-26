@@ -172,22 +172,27 @@ describe("TeamBoard", () => {
 		renderAt("/teams/ENG/board");
 		await screen.findByText("Second Issue");
 
-		const groups = screen.getAllByRole("region");
+		// Columns are named groups carrying the State name and the Issue
+		// count (scoped to main: the sidebar has its own Theme group).
+		const groups = within(screen.getByRole("main")).getAllByRole("group");
 		expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual([
-			"Backlog",
-			"Todo",
-			"In Progress",
-			"In Review",
-			"Done",
-			"Canceled",
+			"Backlog (1)",
+			"Todo (0)",
+			"In Progress (0)",
+			"In Review (0)",
+			"Done (1)",
+			"Canceled (0)",
 		]);
+		const main = screen.getByRole("main");
 		expect(
-			within(screen.getByRole("region", { name: "Backlog" })).getByText(
-				"ENG-1",
-			),
+			within(
+				within(main).getByRole("group", { name: "Backlog (1)" }),
+			).getByText("ENG-1"),
 		).toBeTruthy();
 		expect(
-			within(screen.getByRole("region", { name: "Done" })).getByText("ENG-2"),
+			within(within(main).getByRole("group", { name: "Done (1)" })).getByText(
+				"ENG-2",
+			),
 		).toBeTruthy();
 	});
 
@@ -199,11 +204,14 @@ describe("TeamBoard", () => {
 		renderAt("/teams/ENG/board");
 		await screen.findByText("Set up the core loop");
 
-		const backlog = screen.getByRole("region", { name: "Backlog" });
+		const backlog = screen.getByRole("group", { name: "Backlog (1)" });
 		expect(
 			within(backlog).getByRole("list", { name: "Backlog Issues" }),
 		).toBeTruthy();
-		expect(within(backlog).getByRole("listitem")).toBeTruthy();
+		// The card is a listitem named after the Issue (title included).
+		expect(
+			within(backlog).getByRole("listitem", { name: /Set up the core loop/ }),
+		).toBeTruthy();
 		expect(
 			screen.getByRole("button", { name: "Drag ENG-1: Set up the core loop" }),
 		).toBeTruthy();

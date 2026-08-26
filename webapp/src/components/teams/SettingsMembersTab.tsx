@@ -18,7 +18,7 @@ const ROLE_OPTIONS = [
 ];
 
 const ROLE_SELECT_CLASS =
-	"h-8 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
+	"h-8 rounded-md border border-neutral-300 bg-surface px-2 text-sm text-foreground focus:border-accent dark:border-neutral-700";
 
 function useInvalidateTeamCaches(teamId: string) {
 	const queryClient = useQueryClient();
@@ -56,7 +56,7 @@ function MemberRow({ member, teamId }: { member: TeamMember; teamId: string }) {
 
 	return (
 		<li className="flex items-center gap-2">
-			<span className="min-w-0 flex-1 truncate text-sm text-neutral-900 dark:text-neutral-100">
+			<span className="min-w-0 flex-1 truncate text-sm text-foreground">
 				{member.display_name}
 			</span>
 			<select
@@ -141,12 +141,12 @@ export function SettingsMembersTab({ teamId }: { teamId: string }) {
 			{pickerOpen && (
 				<ul
 					aria-label="Member candidates"
-					className="flex flex-col gap-1 rounded-md border border-neutral-200 p-1 dark:border-neutral-800"
+					className="flex flex-col gap-1 rounded-md border border-line p-1"
 				>
 					{candidatesQuery.isPending ? (
-						<li className="px-2 py-1 text-sm text-neutral-400">Loading…</li>
+						<li className="px-2 py-1 text-sm text-faint">Loading…</li>
 					) : (candidatesQuery.data ?? []).length === 0 ? (
-						<li className="px-2 py-1 text-sm text-neutral-400">
+						<li className="px-2 py-1 text-sm text-faint">
 							No other active Users to add.
 						</li>
 					) : (
@@ -159,7 +159,7 @@ export function SettingsMembersTab({ teamId }: { teamId: string }) {
 									onClick={() => add.mutate(candidate.id)}
 								>
 									<span className="truncate">{candidate.display_name}</span>
-									<span className="truncate text-xs text-neutral-400">
+									<span className="truncate text-xs text-faint">
 										{candidate.email}
 									</span>
 								</Button>

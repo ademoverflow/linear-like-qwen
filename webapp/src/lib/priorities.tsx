@@ -12,19 +12,19 @@ const PRIORITY_STYLE: Record<
 	Priority,
 	{ icon: typeof Minus; className: string; label: string }
 > = {
-	none: { icon: Minus, className: "text-neutral-400", label: "No priority" },
+	none: { icon: Minus, className: "text-faint", label: "No priority" },
 	urgent: { icon: AlertOctagon, className: "text-red-500", label: "Urgent" },
 	high: {
 		icon: ChevronsUp,
-		className: "text-neutral-600 dark:text-neutral-300",
+		className: "text-foreground",
 		label: "High",
 	},
 	medium: {
 		icon: ChevronUp,
-		className: "text-neutral-500 dark:text-neutral-400",
+		className: "text-muted",
 		label: "Medium",
 	},
-	low: { icon: ChevronDown, className: "text-neutral-400", label: "Low" },
+	low: { icon: ChevronDown, className: "text-faint", label: "Low" },
 };
 
 /** Priority options for pickers and filters (single source of labels). */

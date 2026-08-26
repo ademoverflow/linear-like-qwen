@@ -95,11 +95,11 @@ export function IssueFeed({
 					<Skeleton className="h-4 w-1/2" />
 				</div>
 			) : error ? (
-				<p className="text-sm text-neutral-500">
+				<p className="text-sm text-muted">
 					{error instanceof Error ? error.message : "Unknown error"}
 				</p>
 			) : entries.length === 0 ? (
-				<p className="text-sm text-neutral-500">Nothing here yet.</p>
+				<p className="text-sm text-muted">Nothing here yet.</p>
 			) : (
 				<ul className="flex flex-col gap-3">
 					{entries.map((entry) =>
@@ -126,11 +126,11 @@ export function IssueFeed({
 								<span className="shrink-0 font-medium">
 									{entry.activity.actor_display_name ?? "Someone"}
 								</span>
-								<span className="min-w-0 flex-1 break-words text-neutral-600 dark:text-neutral-400">
+								<span className="min-w-0 flex-1 break-words text-muted">
 									{describeChange(entry.activity)}
 								</span>
 								<time
-									className="shrink-0 text-xs text-neutral-400"
+									className="shrink-0 text-xs text-faint"
 									dateTime={entry.activity.created_at.toISOString()}
 								>
 									{entry.activity.created_at.toLocaleString()}
@@ -176,19 +176,19 @@ function CommentCard({
 	}, [confirmDelete]);
 
 	return (
-		<article className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+		<article className="flex flex-col gap-2 rounded-md border border-line p-3">
 			<div className="flex flex-wrap items-center gap-2">
 				<span className="text-sm font-medium">
 					{comment.author_display_name ?? "Someone"}
 				</span>
 				<time
-					className="text-xs text-neutral-400"
+					className="text-xs text-faint"
 					dateTime={comment.created_at.toISOString()}
 				>
 					{comment.created_at.toLocaleString()}
 				</time>
 				{comment.edited_at ? (
-					<span className="text-xs text-neutral-400">edited</span>
+					<span className="text-xs text-faint">edited</span>
 				) : null}
 				<span className="flex-1" />
 				{isAuthor ? (

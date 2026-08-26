@@ -80,7 +80,7 @@ export function NewIssueDialog({
 	return (
 		<Dialog open={open} title="New Issue" onClose={onClose}>
 			{teams && teams.length === 0 ? (
-				<p className="text-sm text-neutral-500">
+				<p className="text-sm text-muted">
 					You don't belong to a Team yet. Ask a workspace Admin to create one.
 				</p>
 			) : (

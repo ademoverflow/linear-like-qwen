@@ -183,7 +183,7 @@ export function MyIssues() {
 		return (
 			<CenteredMessage>
 				<h1 className="text-lg font-semibold">Could not load Issues</h1>
-				<p className="mt-2 text-sm text-neutral-500">
+				<p className="mt-2 text-sm text-muted">
 					{issuesQuery.error instanceof Error
 						? issuesQuery.error.message
 						: "Unknown error"}
@@ -197,7 +197,7 @@ export function MyIssues() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="sticky top-0 z-10 flex items-center gap-4 border-b border-neutral-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90">
+			<div className="sticky top-0 z-10 flex items-center gap-4 border-b border-line bg-surface/90 px-4 py-2 backdrop-blur">
 				<nav aria-label="Breadcrumb">
 					<span className="text-sm font-semibold">My Issues</span>
 				</nav>
@@ -221,7 +221,7 @@ export function MyIssues() {
 				{issues.length === 0 ? (
 					<CenteredMessage>
 						<h1 className="text-lg font-semibold">No Issues assigned to you</h1>
-						<p className="mt-2 text-sm text-neutral-500">
+						<p className="mt-2 text-sm text-muted">
 							Issues you are assigned to, across all your Teams, appear here.
 						</p>
 					</CenteredMessage>
@@ -234,13 +234,13 @@ export function MyIssues() {
 								className="flex flex-col gap-2"
 							>
 								<div className="flex items-center gap-2">
-									<span className="shrink-0 font-mono text-xs text-neutral-500">
+									<span className="shrink-0 font-mono text-xs text-muted">
 										{group.team.key}
 									</span>
 									<span className="text-sm font-semibold">
 										{group.team.name}
 									</span>
-									<span className="text-xs text-neutral-400">
+									<span className="text-xs text-faint">
 										{group.items.length}
 									</span>
 								</div>

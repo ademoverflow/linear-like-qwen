@@ -63,8 +63,8 @@ export function Register() {
 		>
 			{statusQuery.isLoading ? (
 				<div className="flex flex-col gap-3">
-					<div className="h-9 animate-pulse rounded-md bg-neutral-200 dark:bg-neutral-800" />
-					<div className="h-9 animate-pulse rounded-md bg-neutral-200 dark:bg-neutral-800" />
+					<div className="h-9 animate-pulse rounded-md bg-surface-subtle" />
+					<div className="h-9 animate-pulse rounded-md bg-surface-subtle" />
 				</div>
 			) : (
 				<form onSubmit={submit} className="flex flex-col gap-3">
@@ -100,7 +100,7 @@ export function Register() {
 					</Button>
 				</form>
 			)}
-			<p className="mt-4 text-center text-sm text-neutral-500">
+			<p className="mt-4 text-center text-sm text-muted">
 				Already have an account?{" "}
 				<Link to="/login" className="text-accent hover:underline">
 					Log in

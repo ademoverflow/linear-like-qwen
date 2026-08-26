@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { type SearchIssue, searchIssues } from "@/api/issues";
+import { StateDot } from "@/components/issues/StateDot";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 const DEBOUNCE_MS = 150;
@@ -138,31 +139,31 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="Search"
-				className="w-full max-w-lg overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+				className="w-full max-w-lg overflow-hidden rounded-lg border border-line bg-surface shadow-xl"
 			>
-				<div className="flex items-center gap-2 border-b border-neutral-200 px-3 dark:border-neutral-800">
-					<Search size={16} className="shrink-0 text-neutral-400" aria-hidden />
+				<div className="flex items-center gap-2 border-b border-line px-3">
+					<Search size={16} className="shrink-0 text-faint" aria-hidden />
 					<input
 						ref={inputRef}
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
 						onKeyDown={onKeyDown}
 						aria-label="Search Issues"
-						placeholder="Search Issues by identifier or title  ( / )"
-						className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
+						placeholder="Search Issues by identifier or title ( / )"
+						className="h-11 w-full bg-transparent text-sm placeholder:text-faint"
 					/>
 					<button
 						type="button"
 						onClick={onClose}
 						aria-label="Close search"
-						className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+						className="rounded p-1 text-faint hover:bg-surface-subtle hover:text-foreground"
 					>
 						<X size={16} />
 					</button>
 				</div>
 				<div className="max-h-[50vh] overflow-y-auto p-2">
 					{query.trim() === "" ? (
-						<p className="px-2 py-3 text-sm text-neutral-500">
+						<p className="px-2 py-3 text-sm text-muted">
 							Search across your Teams by identifier (e.g.{" "}
 							<span className="font-mono">ENG-1</span>) or title.
 						</p>
@@ -174,13 +175,13 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 					) : error !== null ? (
 						<p className="px-2 py-3 text-sm text-red-500">{error}</p>
 					) : results.length === 0 ? (
-						<p className="px-2 py-3 text-sm text-neutral-500">
+						<p className="px-2 py-3 text-sm text-muted">
 							No Issues match “{query.trim()}”.
 						</p>
 					) : (
 						groups.map((group) => (
 							<section key={group.teamName} className="mb-1">
-								<div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+								<div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-faint">
 									{group.teamName}
 								</div>
 								{group.items.map((issue) => {
@@ -193,24 +194,22 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 											onClick={() => openIssue(issue)}
 											className={
 												"flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left " +
-												(index === selected
-													? "bg-neutral-100 dark:bg-neutral-800"
-													: "")
+												(index === selected ? "bg-surface-subtle" : "")
 											}
 										>
 											<span className="flex items-center gap-2">
-												<span className="shrink-0 font-mono text-xs text-neutral-500">
+												<span className="shrink-0 font-mono text-xs text-muted">
 													{issue.identifier}
 												</span>
 												<span className="min-w-0 flex-1 truncate text-sm font-medium">
 													{issue.title}
 												</span>
 											</span>
-											<span className="flex items-center gap-1.5 pl-0.5 text-xs text-neutral-400">
-												<span
-													className="inline-block h-2 w-2 shrink-0 rounded-full"
-													style={{ backgroundColor: issue.state_color }}
-													aria-hidden
+											<span className="flex items-center gap-1.5 pl-0.5 text-xs text-faint">
+												<StateDot
+													color={issue.state_color}
+													category={issue.state_category}
+													small
 												/>
 												{issue.state_name}
 											</span>

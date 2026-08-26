@@ -14,6 +14,7 @@ add it here in the same commit. Full definitions and rules: `PROMPT-linear-like.
 | **Identifier** | The human id `KEY-number`. Computed, never stored. | slug |
 | **My Issues** | Personal view: Issues assigned to the current User, aggregated across all the Teams they belong to. | my tasks, my list |
 | **Search** | Global read-only overlay matching Issue identifier or title substrings across the User's Teams. | query (as a verb), find |
+| **Theme** | Per-User display preference `system` / `light` / `dark` (`users.theme`, NULL = system); applied through the CSS token layer (ADR 0014). | mode, skin, appearance |
 | **Workflow** | A Team's ordered set of Workflow States. | pipeline, board (the board is a *view* of the workflow) |
 | **Workflow State** | `name`, `category`, `color`, `position`. | status, column, stage |
 | **Category** | One of `backlog, unstarted, started, completed, canceled`; semantic meaning of a State. | type |

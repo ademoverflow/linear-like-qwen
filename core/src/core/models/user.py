@@ -49,6 +49,8 @@ class User(SQLModel, table=True):
     avatar_url: str | None = Field(
         default=None, max_length=500, sa_column=Column(Text, nullable=True)
     )
+    # Theme preference (ticket 10): "system" / "light" / "dark"; NULL = system.
+    theme: str | None = Field(default=None, max_length=16)
     is_admin: bool = Field(
         default=False, nullable=False, sa_column_kwargs={"server_default": text("false")}
     )

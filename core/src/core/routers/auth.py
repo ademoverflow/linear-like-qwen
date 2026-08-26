@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from core.database import get_session
+from core.domain.profile import theme_from_storage
 from core.middlewares.user import get_current_user
 from core.models.user import User
 from core.services import auth as auth_service
@@ -34,6 +35,14 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class UpdateMeRequest(BaseModel):
+    """Body for ``PATCH /auth/me`` (partial update; omitted fields unchanged)."""
+
+    display_name: str | None = Field(default=None, max_length=100)
+    avatar_url: str | None = Field(default=None, max_length=500)
+    theme: str | None = None
+
+
 class MembershipResponse(BaseModel):
     """A team membership as exposed by ``GET /auth/me``."""
 
@@ -50,6 +59,7 @@ class MeResponse(BaseModel):
     email: str
     display_name: str | None
     avatar_url: str | None
+    theme: str
     is_admin: bool
     is_active: bool
     created_at: datetime
@@ -69,6 +79,7 @@ def me_response(user: User, memberships: list[auth_service.MembershipInfo]) -> M
         email=user.email,
         display_name=user.display_name,
         avatar_url=user.avatar_url,
+        theme=theme_from_storage(user.theme),
         is_admin=user.is_admin,
         is_active=user.is_active,
         created_at=user.created_at,
@@ -141,6 +152,23 @@ async def me(
     """Return the current user's profile, admin flag and team memberships."""
     memberships = await auth_service.get_me(session, user)
     return me_response(user, memberships)
+
+
+@router.patch("/me")
+async def update_me(
+    payload: UpdateMeRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> MeResponse:
+    """Update the caller's own profile (brief §9); returns the updated me."""
+    changes = {
+        name: getattr(payload, name)
+        for name in payload.model_fields_set
+        if name in auth_service.PROFILE_FIELDS
+    }
+    updated = await auth_service.update_me(session, user=user, changes=changes)
+    memberships = await auth_service.get_me(session, updated)
+    return me_response(updated, memberships)
 
 
 @router.get("/status")

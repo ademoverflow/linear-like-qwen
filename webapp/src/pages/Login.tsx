@@ -54,7 +54,7 @@ export function Login() {
 					{isPending ? "Logging in…" : "Log in"}
 				</Button>
 			</form>
-			<p className="mt-4 text-center text-sm text-neutral-500">
+			<p className="mt-4 text-center text-sm text-muted">
 				No account yet?{" "}
 				<Link to="/register" className="text-accent hover:underline">
 					Register
@@ -75,10 +75,10 @@ export function AuthFrame({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-neutral-50 p-4 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-			<div className="w-full max-w-sm rounded-lg border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+		<div className="flex min-h-screen items-center justify-center bg-canvas p-4 text-foreground">
+			<div className="w-full max-w-sm rounded-lg border border-line bg-surface p-6 shadow-sm">
 				<h1 className="text-lg font-semibold">{title}</h1>
-				<p className="mb-4 text-sm text-neutral-500">{subtitle}</p>
+				<p className="mb-4 text-sm text-muted">{subtitle}</p>
 				{children}
 			</div>
 		</div>

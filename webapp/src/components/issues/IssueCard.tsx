@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { PriorityGlyph } from "@/lib/priorities";
 import { LabelChip } from "./LabelChip";
+import { StateDot } from "./StateDot";
 
 /**
  * Issue card, prototype variant B (card stack): identifier + title + state
@@ -36,25 +37,19 @@ export function IssueCard({
 	const body = (
 		<>
 			<div className="flex items-center gap-2">
-				<span className="shrink-0 font-mono text-xs text-neutral-500">
+				<span className="shrink-0 font-mono text-xs text-muted">
 					{issue.identifier}
 				</span>
 				<span className="min-w-0 flex-1 truncate text-sm font-medium">
 					{issue.title}
 				</span>
-				<span
-					className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-					style={{ backgroundColor: issue.state_color }}
-					aria-hidden
-				/>
-				<span className="shrink-0 text-xs text-neutral-500">
-					{issue.state_name}
-				</span>
+				<StateDot color={issue.state_color} category={issue.state_category} />
+				<span className="shrink-0 text-xs text-muted">{issue.state_name}</span>
 			</div>
 			<div className="mt-2 flex flex-wrap items-center gap-2">
 				<PriorityGlyph priority={issue.priority} />
 				{archived && (
-					<span className="rounded-full border border-neutral-300 px-1.5 py-0.5 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+					<span className="rounded-full border border-neutral-300 px-1.5 py-0.5 text-xs text-muted dark:border-neutral-700">
 						Archived
 					</span>
 				)}
@@ -76,7 +71,7 @@ export function IssueCard({
 		</>
 	);
 	const cardClass =
-		"block min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm hover:shadow dark:border-neutral-800 dark:bg-neutral-900";
+		"block min-w-0 flex-1 rounded-lg border border-line bg-surface p-3 shadow-sm hover:shadow";
 	return (
 		<div className="flex items-start gap-2" data-issue-id={issue.id}>
 			{selectable && (

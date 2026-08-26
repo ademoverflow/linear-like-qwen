@@ -25,10 +25,7 @@ export function Input({
 	const errorId = error ? `${id}-error` : undefined;
 	return (
 		<div className="flex flex-col gap-1.5">
-			<label
-				htmlFor={id}
-				className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-			>
+			<label htmlFor={id} className="text-sm font-medium text-foreground">
 				{label}
 			</label>
 			<input
@@ -40,7 +37,7 @@ export function Input({
 				disabled={disabled}
 				aria-invalid={error ? true : undefined}
 				aria-describedby={errorId}
-				className="h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				className="h-9 rounded-md border border-neutral-300 bg-surface px-3 text-sm text-foreground placeholder:text-faint focus:border-accent dark:border-neutral-700"
 			/>
 			{error && (
 				<p id={errorId} className="text-xs text-red-600 dark:text-red-400">

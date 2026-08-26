@@ -29,9 +29,7 @@ export function ShortcutCheatsheet({
 						key={shortcut.keys}
 						className="flex items-center justify-between gap-4 text-sm"
 					>
-						<span className="text-neutral-600 dark:text-neutral-300">
-							{shortcut.description}
-						</span>
+						<span className="text-foreground">{shortcut.description}</span>
 						<kbd className="shrink-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs dark:border-neutral-700">
 							{shortcut.keys}
 						</kbd>

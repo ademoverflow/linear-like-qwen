@@ -41,15 +41,15 @@ export function IssueQuickActions({
 	onToggleLabel,
 }: IssueQuickActionsProps) {
 	return (
-		<div className="fixed bottom-4 left-1/2 z-20 w-full max-w-md -translate-x-1/2 rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+		<div className="fixed bottom-4 left-1/2 z-20 w-full max-w-md -translate-x-1/2 rounded-lg border border-line bg-surface px-4 py-3 shadow-lg">
 			<div className="mb-2 flex items-center justify-between gap-3">
 				<span className="truncate text-sm font-medium">
-					<span className="font-mono text-xs text-neutral-500">
+					<span className="font-mono text-xs text-muted">
 						{issue.identifier}
 					</span>{" "}
 					— {KIND_LABEL[kind]}
 				</span>
-				<kbd className="shrink-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs text-neutral-400 dark:border-neutral-700">
+				<kbd className="shrink-0 rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs text-faint dark:border-neutral-700">
 					Esc
 				</kbd>
 			</div>
@@ -117,9 +117,7 @@ export function IssueQuickActions({
 			{kind === "labels" && (
 				<ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
 					{labels.length === 0 && (
-						<li className="text-sm text-neutral-500">
-							No Labels in this Team yet.
-						</li>
+						<li className="text-sm text-muted">No Labels in this Team yet.</li>
 					)}
 					{labels.map((label) => {
 						const attached = issue.labels.some(
@@ -127,7 +125,7 @@ export function IssueQuickActions({
 						);
 						return (
 							<li key={label.id}>
-								<label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
+								<label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-surface-subtle">
 									<input
 										type="checkbox"
 										checked={attached}

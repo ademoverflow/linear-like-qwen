@@ -6,6 +6,7 @@ import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,6 +19,13 @@ from core.domain.errors import (
     ValidationError,
 )
 from core.domain.invitations import invitation_state
+from core.domain.profile import (
+    MSG_UNKNOWN_PROFILE_FIELD,
+    normalize_avatar_url,
+    normalize_display_name,
+    theme_to_storage,
+    validate_theme,
+)
 from core.models.membership import Membership
 from core.models.team import Team
 from core.models.user import User
@@ -241,3 +249,45 @@ async def registration_status(session: AsyncSession) -> bool:
     """Whether bootstrap registration is open (user base still empty)."""
     user_count = (await session.exec(select(func.count()).select_from(User))).one()
     return user_count == 0
+
+
+PROFILE_FIELDS = {"display_name", "avatar_url", "theme"}
+
+
+async def update_me(session: AsyncSession, *, user: User, changes: dict[str, Any]) -> User:
+    """Update the authenticated user's own profile (brief §9, ticket 10).
+
+    Only ``display_name``, ``avatar_url`` and ``theme`` are accepted (``None``
+    clears a nullable field). The theme is validated against the fixed set;
+    ``"system"`` is stored as NULL. No Activity rows: a profile change is not
+    an Issue Activity (``issue_id`` is NOT NULL). No authorization action:
+    the endpoint is gated by the auth dependency and only ever updates the
+    caller.
+
+    Args:
+        session: The database session (the transaction is owned here).
+        user: The authenticated acting user (detached; re-loaded here).
+        changes: Field name to new value, only for the fields the client
+            sent (``None`` clears).
+
+    Returns:
+        The updated user (managed in the session, attributes refreshed).
+
+    Raises:
+        ValidationError: If a field is unknown or a value is invalid.
+
+    """
+    async with session.begin():
+        target = (await session.exec(select(User).where(User.id == user.id))).one()
+        for name, value in changes.items():
+            if name == "display_name":
+                target.display_name = normalize_display_name(value)
+            elif name == "avatar_url":
+                target.avatar_url = normalize_avatar_url(value)
+            elif name == "theme":
+                target.theme = theme_to_storage(validate_theme(value))
+            else:
+                raise ValidationError(MSG_UNKNOWN_PROFILE_FIELD.format(field=name))
+        await session.flush()
+        await session.refresh(target)
+        return target

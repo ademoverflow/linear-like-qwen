@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubMediaQueries } from "../test/media";
 
 vi.stubEnv("VITE_API_URL", "http://api.test");
 
@@ -101,12 +102,20 @@ function mockCommon() {
 	vi.mocked(listTeamLabels).mockResolvedValue([]);
 }
 
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
 describe("IssueDetail", () => {
 	it("shows the identifier, title, sanitized Markdown and properties", async () => {
 		mockCommon();
 		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
 		expect(await screen.findByText("ENG-1")).toBeTruthy();
-		expect(screen.getByText("Set up the core loop")).toBeTruthy();
+		// Desktop layout: the title appears in the panel and in the
+		// left list column (the list data resolves a wave later).
+		await waitFor(() =>
+			expect(screen.getAllByText("Set up the core loop")).toHaveLength(2),
+		);
 		// Markdown rendered (not raw): the heading and the bold span.
 		expect(screen.getByRole("heading", { name: "Plan" })).toBeTruthy();
 		expect(screen.getByText("bold")).toBeTruthy();
@@ -118,6 +127,19 @@ describe("IssueDetail", () => {
 		expect(screen.getByText("Unassigned")).toBeTruthy();
 		// The Labels property is a picker; the fixture Issue has no labels.
 		expect(screen.getByText("No labels")).toBeTruthy();
+	});
+
+	it("below 768px the list column is gone and the panel is the full page", async () => {
+		stubMediaQueries({ desktop: false });
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByText("ENG-1");
+		// No list column: its New Issue button is absent and the title
+		// appears only in the panel.
+		expect(screen.queryByRole("button", { name: "New Issue" })).toBeNull();
+		expect(screen.getAllByText("Set up the core loop")).toHaveLength(1);
+		// Back navigation is the panel header link.
+		expect(screen.getByRole("link", { name: /ENG \/ Issues/ })).toBeTruthy();
 	});
 
 	it("shows the Activity feed chronologically", async () => {

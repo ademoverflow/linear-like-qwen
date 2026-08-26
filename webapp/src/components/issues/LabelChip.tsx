@@ -14,7 +14,7 @@ export function LabelChip({
 	return (
 		<span
 			className={
-				"inline-flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300 " +
+				"inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-canvas text-muted dark:border-neutral-700 dark:bg-surface-subtle/60 " +
 				(compact ? "px-1.5 py-0 text-[11px]" : "px-2 py-0.5 text-xs")
 			}
 		>

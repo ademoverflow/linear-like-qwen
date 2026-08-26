@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 from psycopg2.extensions import connection as pg_connection
 
-from tests.conftest import ADMIN_PASSWORD, MakeUser, register_admin
+from tests.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, MakeUser, register_admin
 
 API = "/api/v1/auth"
 
@@ -169,3 +169,69 @@ def test_me_includes_admin_flag_and_memberships(client: TestClient) -> None:
             "role": "owner",
         }
     ]
+
+
+def test_me_defaults_theme_to_system(client: TestClient) -> None:
+    """A user without a stored preference reports theme "system"."""
+    register_admin(client)
+    me = client.get(f"{API}/me").json()
+    assert me["theme"] == "system"
+
+
+def test_update_me_requires_auth(client: TestClient) -> None:
+    """PATCH /auth/me without a token is 401."""
+    assert client.patch(f"{API}/me", json={"theme": "dark"}).status_code == 401
+
+
+def test_update_me_theme_is_persisted_and_returned(client: TestClient) -> None:
+    """PATCH returns the updated me; GET /auth/me reflects the new theme."""
+    register_admin(client)
+    response = client.patch(f"{API}/me", json={"theme": "dark"})
+    assert response.status_code == 200
+    body = response.json()
+    # Every mutation returns the updated resource: the full me payload.
+    assert body["theme"] == "dark"
+    assert body["email"] == ADMIN_EMAIL
+    assert client.get(f"{API}/me").json()["theme"] == "dark"
+
+
+def test_update_me_invalid_theme_is_400(client: TestClient) -> None:
+    """An unknown theme is rejected with the error envelope (ADR 0003)."""
+    register_admin(client)
+    response = client.patch(f"{API}/me", json={"theme": "blue"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert client.get(f"{API}/me").json()["theme"] == "system"
+
+
+def test_update_me_display_name_and_avatar_trim_and_clear(client: TestClient) -> None:
+    """Values are trimmed; an explicit null clears the field."""
+    register_admin(client)
+    response = client.patch(
+        f"{API}/me",
+        json={"display_name": "  Ada  ", "avatar_url": "  https://example.com/a.png  "},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["display_name"] == "Ada"
+    assert body["avatar_url"] == "https://example.com/a.png"
+    cleared = client.patch(f"{API}/me", json={"display_name": None, "avatar_url": None}).json()
+    assert cleared["display_name"] is None
+    assert cleared["avatar_url"] is None
+
+
+def test_update_me_partial_keeps_other_fields(client: TestClient) -> None:
+    """Omitted fields are unchanged (PATCH semantics)."""
+    register_admin(client)
+    client.patch(f"{API}/me", json={"display_name": "Ada", "theme": "light"})
+    updated = client.patch(f"{API}/me", json={"theme": "dark"}).json()
+    assert updated["theme"] == "dark"
+    assert updated["display_name"] == "Ada"
+
+
+def test_update_me_null_theme_resets_to_system(client: TestClient) -> None:
+    """theme: null clears the preference (back to the system setting)."""
+    register_admin(client)
+    client.patch(f"{API}/me", json={"theme": "dark"})
+    updated = client.patch(f"{API}/me", json={"theme": None})
+    assert updated.json()["theme"] == "system"

@@ -26,6 +26,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useTransitionIssue } from "@/hooks/use-transition-issue";
 import { PriorityGlyph } from "@/lib/priorities";
 import { LabelChip } from "./LabelChip";
+import { StateDot } from "./StateDot";
 
 /**
  * Resolve the target State of a drop (board DnD, ticket 04). Dropping on a
@@ -232,24 +233,22 @@ function BoardColumn({
 	// The whole column (header strip included) is the drop target, so
 	// drops on empty columns or the header are not discarded.
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: fieldset would imply form semantics; the column groups the State's cards
 		<section
 			ref={setNodeRef}
-			aria-label={state.name}
+			role="group"
+			aria-label={`${state.name} (${issues.length})`}
 			className={
-				"flex h-full w-72 shrink-0 flex-col rounded-lg border border-neutral-200 dark:border-neutral-800 " +
+				"flex h-full w-72 shrink-0 flex-col rounded-lg border border-line " +
 				(isOver || dropHint != null
 					? "bg-accent/10"
-					: "bg-neutral-100/60 dark:bg-neutral-900/40")
+					: "bg-surface-subtle/60 dark:bg-surface/40")
 			}
 		>
 			<header className="flex items-center gap-2 px-3 py-2.5">
-				<span
-					className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-					style={{ backgroundColor: state.color }}
-					aria-hidden
-				/>
+				<StateDot color={state.color} category={state.category} />
 				<span className="text-sm font-semibold">{state.name}</span>
-				<span className="ml-auto rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+				<span className="ml-auto rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-muted">
 					{issues.length}
 				</span>
 			</header>
@@ -304,23 +303,23 @@ function DropPlaceholder({
 		<div
 			aria-hidden
 			style={height == null ? undefined : { height }}
-			className="flex shrink-0 items-start rounded-lg border-2 border-dashed border-neutral-300 bg-white/60 p-2.5 dark:border-neutral-600 dark:bg-neutral-800/40"
+			className="flex shrink-0 items-start rounded-lg border-2 border-dashed border-neutral-300 bg-surface/60 p-2.5 dark:border-neutral-600 dark:bg-surface-subtle/40"
 		>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-1.5">
-					<span className="shrink-0 font-mono text-xs text-neutral-400">
+					<span className="shrink-0 font-mono text-xs text-faint">
 						{issue.identifier}
 					</span>
-					<span
-						className="inline-block h-2 w-2 shrink-0 rounded-full"
-						style={{ backgroundColor: issue.state_color }}
-						aria-hidden
+					<StateDot
+						color={issue.state_color}
+						category={issue.state_category}
+						small
 					/>
-					<span className="truncate text-xs text-neutral-400">
+					<span className="truncate text-xs text-faint">
 						{issue.state_name}
 					</span>
 				</div>
-				<p className="mt-1 truncate text-sm font-medium text-neutral-500 dark:text-neutral-400">
+				<p className="mt-1 truncate text-sm font-medium text-muted">
 					{issue.title}
 				</p>
 				<div className="mt-1.5 flex items-center gap-2">
@@ -352,9 +351,11 @@ function BoardCard({ issue, teamKey }: { issue: Issue; teamKey: string }) {
 	return (
 		<li
 			ref={setNodeRef}
+			// listitem takes its name from author (ARIA): identifier + title.
+			aria-label={`${issue.identifier}: ${issue.title}`}
 			style={style}
 			className={
-				"relative flex items-start gap-1 rounded-lg border border-neutral-200 bg-white p-2.5 shadow-sm " +
+				"relative flex items-start gap-1 rounded-lg border border-line bg-surface p-2.5 shadow-sm " +
 				(isDragging ? "z-20 opacity-90 shadow-lg" : "")
 			}
 		>
@@ -364,7 +365,7 @@ function BoardCard({ issue, teamKey }: { issue: Issue; teamKey: string }) {
 				{...attributes}
 				{...listeners}
 				aria-label={`Drag ${issue.identifier}: ${issue.title}`}
-				className="-m-1 cursor-grab rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+				className="-m-1 cursor-grab rounded p-1 text-faint hover:bg-surface-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
 			>
 				<GripVertical size={14} aria-hidden />
 			</button>
@@ -374,15 +375,15 @@ function BoardCard({ issue, teamKey }: { issue: Issue; teamKey: string }) {
 				className="min-w-0 flex-1 rounded focus-visible:ring-2 focus-visible:ring-accent"
 			>
 				<div className="flex items-center gap-1.5">
-					<span className="shrink-0 font-mono text-xs text-neutral-500">
+					<span className="shrink-0 font-mono text-xs text-muted">
 						{issue.identifier}
 					</span>
-					<span
-						className="inline-block h-2 w-2 shrink-0 rounded-full"
-						style={{ backgroundColor: issue.state_color }}
-						aria-hidden
+					<StateDot
+						color={issue.state_color}
+						category={issue.state_category}
+						small
 					/>
-					<span className="truncate text-xs text-neutral-500">
+					<span className="truncate text-xs text-muted">
 						{issue.state_name}
 					</span>
 				</div>

@@ -1,6 +1,7 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Issue } from "@/api/issues";
+import { stubMediaQueries } from "../../test/media";
 
 vi.stubEnv("VITE_API_URL", "http://api.test");
 
@@ -83,6 +84,88 @@ function mockCommon() {
 	vi.mocked(getIssue).mockResolvedValue(issueDetailFixture);
 	vi.mocked(searchIssues).mockResolvedValue({ issues: [] });
 }
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	localStorage.clear();
+	document.documentElement.classList.remove("dark");
+});
+
+describe("AppShell theming (ticket 10)", () => {
+	it("system: follows the dark OS setting", async () => {
+		stubMediaQueries({ desktop: true, systemDark: true });
+		mockCommon();
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		await waitFor(() =>
+			expect(document.documentElement.classList.contains("dark")).toBe(true),
+		);
+	});
+
+	it("system: follows OS setting changes at runtime", async () => {
+		const stub = stubMediaQueries({ desktop: true, systemDark: false });
+		mockCommon();
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		expect(document.documentElement.classList.contains("dark")).toBe(false);
+		stub.systemDark.set(true);
+		await waitFor(() =>
+			expect(document.documentElement.classList.contains("dark")).toBe(true),
+		);
+	});
+
+	it("a manual light override wins over the dark OS setting", async () => {
+		stubMediaQueries({ desktop: true, systemDark: true });
+		mockCommon();
+		vi.mocked(getMe).mockResolvedValue({ ...meFixture, theme: "light" });
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		await waitFor(() =>
+			expect(document.documentElement.classList.contains("dark")).toBe(false),
+		);
+	});
+
+	it("a manual dark preference applies the dark theme", async () => {
+		stubMediaQueries({ desktop: true, systemDark: false });
+		mockCommon();
+		vi.mocked(getMe).mockResolvedValue({ ...meFixture, theme: "dark" });
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		await waitFor(() =>
+			expect(document.documentElement.classList.contains("dark")).toBe(true),
+		);
+	});
+});
+
+describe("AppShell 768px layout (ticket 10)", () => {
+	it("below 768px the sidebar becomes an off-canvas drawer", async () => {
+		stubMediaQueries({ desktop: false });
+		mockCommon();
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+
+		// The static sidebar is gone; the narrow header offers the drawer.
+		expect(screen.queryByRole("button", { name: "Log out" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
+		const drawer = await screen.findByRole("dialog", { name: "Navigation" });
+		expect(
+			within(drawer).getByRole("link", { name: "My Issues" }),
+		).toBeTruthy();
+		// Esc closes the drawer. The drawer listens on the document capture
+		// phase; in jsdom dispatching on window does not reach it.
+		fireEvent.keyDown(document, { key: "Escape" });
+		expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
+	});
+
+	it("keeps the static sidebar on desktop", async () => {
+		stubMediaQueries({ desktop: true });
+		mockCommon();
+		renderAt("/teams/ENG/issues");
+		await screen.findByText("ENG-1");
+		expect(screen.queryByRole("button", { name: "Open sidebar" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
+	});
+});
 
 describe("AppShell shortcuts", () => {
 	it("C opens the New Issue dialog", async () => {

@@ -5,6 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.ico" />
     <title>Linear Like Qwen</title>
+    <script>
+      // Apply the stored theme preference (or the OS setting) before first
+      // paint to avoid a flash of the wrong theme (ticket 10, ADR 0014).
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme-preference");
+          var preference =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          var dark =
+            preference === "dark" ||
+            (preference === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch (error) {
+          // no-op: the theme is re-applied once the app loads
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

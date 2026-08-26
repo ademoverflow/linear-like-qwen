@@ -17,6 +17,7 @@ export const meFixture: Me = {
 	email: "admin@example.com",
 	display_name: "Admin",
 	avatar_url: null,
+	theme: "system",
 	is_admin: true,
 	is_active: true,
 	created_at: new Date(ISO),

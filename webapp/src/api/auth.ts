@@ -10,11 +10,16 @@ export const membershipSchema = z.object({
 	role: z.enum(["owner", "member"]),
 });
 
+export const themeSchema = z.enum(["system", "light", "dark"]);
+
+export type Theme = z.infer<typeof themeSchema>;
+
 export const meSchema = z.object({
 	id: z.string().uuid(),
 	email: z.string(),
 	display_name: z.string().nullish(),
 	avatar_url: z.string().nullish(),
+	theme: themeSchema,
 	is_admin: z.boolean(),
 	is_active: z.boolean(),
 	created_at: z.coerce.date(),
@@ -57,6 +62,16 @@ export async function login(input: {
 
 export async function logout(): Promise<void> {
 	await api.post("/auth/logout");
+}
+
+/** Partial profile update (brief §9); the response is the updated me. */
+export async function updateMe(input: {
+	display_name?: string | null;
+	avatar_url?: string | null;
+	theme?: Theme;
+}): Promise<Me> {
+	const data = await api.patch("/auth/me", input);
+	return meSchema.parse(data);
 }
 
 export { queryKeys };

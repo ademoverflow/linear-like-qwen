@@ -44,7 +44,7 @@ const CATEGORIES = [
 ];
 
 const NAME_INPUT_CLASS =
-	"min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
+	"min-w-0 flex-1 rounded-md border border-neutral-300 bg-surface px-2 py-1 text-sm text-foreground focus:border-accent dark:border-neutral-700";
 
 function StateRow({
 	state,
@@ -151,7 +151,7 @@ function StateRow({
 			ref={setNodeRef}
 			style={style}
 			className={
-				"flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1.5 " +
+				"flex items-center gap-2 rounded-md border border-line bg-surface px-2 py-1.5 " +
 				(isDragging ? "z-20 opacity-90 shadow-lg" : "")
 			}
 		>
@@ -161,7 +161,7 @@ function StateRow({
 				{...attributes}
 				{...listeners}
 				aria-label={`Drag ${state.name}`}
-				className="-m-1 shrink-0 cursor-grab rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+				className="-m-1 shrink-0 cursor-grab rounded p-1 text-faint hover:bg-surface-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
 			>
 				<GripVertical size={14} aria-hidden />
 			</button>
@@ -173,7 +173,7 @@ function StateRow({
 				onBlur={() => {
 					if (color !== state.color) edit.mutate({ color });
 				}}
-				className="h-7 w-7 shrink-0 cursor-pointer rounded border border-neutral-300 bg-white p-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+				className="h-7 w-7 shrink-0 cursor-pointer rounded border border-neutral-300 bg-surface p-0.5 dark:border-neutral-700"
 			/>
 			<input
 				type="text"
@@ -191,7 +191,7 @@ function StateRow({
 				aria-label={`Category for ${state.name}`}
 				value={state.category}
 				onChange={(event) => edit.mutate({ category: event.target.value })}
-				className="h-8 shrink-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				className="h-8 shrink-0 rounded-md border border-neutral-300 bg-surface px-2 text-sm text-foreground focus:border-accent dark:border-neutral-700"
 			>
 				{CATEGORIES.map((option) => (
 					<option key={option.value} value={option.value}>
@@ -199,7 +199,7 @@ function StateRow({
 					</option>
 				))}
 			</select>
-			<span className="shrink-0 text-xs text-neutral-400">{issueCount}</span>
+			<span className="shrink-0 text-xs text-faint">{issueCount}</span>
 			<Button variant="ghost" onClick={handleDelete} className="shrink-0">
 				{confirmDelete ? "Confirm?" : "Delete"}
 			</Button>
@@ -396,7 +396,7 @@ export function SettingsWorkflowTab({ teamId }: { teamId: string }) {
 						/>
 						<div className="flex flex-col gap-1.5">
 							<label
-								className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+								className="text-sm font-medium text-foreground"
 								htmlFor={newColorId}
 							>
 								Colour
@@ -406,7 +406,7 @@ export function SettingsWorkflowTab({ teamId }: { teamId: string }) {
 								id={newColorId}
 								value={newColor}
 								onChange={(event) => setNewColor(event.target.value)}
-								className="h-9 w-9 cursor-pointer rounded-md border border-neutral-300 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-900"
+								className="h-9 w-9 cursor-pointer rounded-md border border-neutral-300 bg-surface p-1 dark:border-neutral-700"
 							/>
 						</div>
 						<div className="flex justify-end">
@@ -429,7 +429,7 @@ export function SettingsWorkflowTab({ teamId }: { teamId: string }) {
 						setMigrateTargetId("");
 					}}
 				>
-					<p className="text-sm text-neutral-500">
+					<p className="text-sm text-muted">
 						This State still holds {issueCount.get(stateToDelete.id) ?? 0} Issue
 						{(issueCount.get(stateToDelete.id) ?? 0) === 1 ? "" : "s"}. Choose a
 						State of the same category to move them to; the State is deleted in

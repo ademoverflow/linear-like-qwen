@@ -45,7 +45,7 @@ export function TeamBoard() {
 		return (
 			<CenteredMessage>
 				<h1 className="text-lg font-semibold">Team not found</h1>
-				<p className="mt-2 text-sm text-neutral-500">
+				<p className="mt-2 text-sm text-muted">
 					No Team with the key {teamKey} is visible to you.
 				</p>
 			</CenteredMessage>
@@ -55,7 +55,7 @@ export function TeamBoard() {
 		return (
 			<CenteredMessage>
 				<h1 className="text-lg font-semibold">This Team is archived</h1>
-				<p className="mt-2 text-sm text-neutral-500">
+				<p className="mt-2 text-sm text-muted">
 					The Board is hidden while the Team is archived. A workspace Admin can
 					restore it from the settings.
 				</p>
@@ -82,11 +82,11 @@ export function TeamBoard() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90">
+			<div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface/90 px-4 py-2 backdrop-blur">
 				<nav aria-label="Breadcrumb">
 					<span className="text-sm font-semibold">{team.key}</span>
-					<span className="mx-1.5 text-neutral-400">›</span>
-					<span className="text-sm text-neutral-500">Board</span>
+					<span className="mx-1.5 text-faint">›</span>
+					<span className="text-sm text-muted">Board</span>
 				</nav>
 				<Button variant="secondary" onClick={() => newIssue.open(team.id)}>
 					New Issue
@@ -99,7 +99,7 @@ export function TeamBoard() {
 				) : loadError ? (
 					<CenteredMessage>
 						<h1 className="text-lg font-semibold">Could not load the Board</h1>
-						<p className="mt-2 text-sm text-neutral-500">
+						<p className="mt-2 text-sm text-muted">
 							{loadFailure instanceof Error
 								? loadFailure.message
 								: "Unknown error"}
@@ -118,7 +118,7 @@ export function TeamBoard() {
 				) : (issuesQuery.data ?? []).length === 0 ? (
 					<CenteredMessage>
 						<h1 className="text-lg font-semibold">No Issues yet</h1>
-						<p className="mt-2 text-sm text-neutral-500">
+						<p className="mt-2 text-sm text-muted">
 							Press{" "}
 							<kbd className="rounded border border-neutral-300 px-1.5 py-0.5 font-mono text-xs dark:border-neutral-700">
 								C

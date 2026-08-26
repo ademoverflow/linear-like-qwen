@@ -48,13 +48,11 @@ function FilterGroup({
 	if (options.length === 0) return null;
 	return (
 		<fieldset className="flex flex-col gap-1.5">
-			<legend className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-				{legend}
-			</legend>
+			<legend className="text-sm font-medium text-foreground">{legend}</legend>
 			{options.map((option) => (
 				<label
 					key={option.value}
-					className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300"
+					className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
 				>
 					<input
 						type="checkbox"
