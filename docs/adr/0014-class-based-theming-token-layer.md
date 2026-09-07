@@ -1,6 +1,6 @@
 # 0014 — Theming: class-based dark mode + CSS variable token layer
 
-**Status**: accepted
+**Status**: accepted (the "one global focus ring" clause is superseded by 0015)
 
 ## Context
 
