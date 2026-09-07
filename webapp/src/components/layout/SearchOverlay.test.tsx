@@ -97,6 +97,12 @@ describe("SearchOverlay", () => {
 		expect(input).toBeTruthy();
 		// Typed text must follow the theme (token, not browser default).
 		expect(input.className).toContain("text-foreground");
+		// The dialog is portaled to <body>, outside the AppShell's
+		// text-foreground scope: the root carries the token itself so
+		// result rows (title, state) inherit it in dark mode.
+		expect(screen.getByRole("dialog", { name: "Search" }).className).toContain(
+			"text-foreground",
+		);
 		await waitFor(() => expect(document.activeElement).toBe(input));
 	});
 

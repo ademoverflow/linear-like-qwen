@@ -139,7 +139,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="Search"
-				className="w-full max-w-lg overflow-hidden rounded-lg border border-line bg-surface shadow-xl"
+				className="w-full max-w-lg overflow-hidden rounded-lg border border-line bg-surface text-foreground shadow-xl"
 			>
 				<div className="flex items-center gap-2 border-b border-line px-3">
 					<Search size={16} className="shrink-0 text-faint" aria-hidden />
