@@ -9,6 +9,9 @@ Test-side database access is **synchronous** (psycopg2). The app runs inside
 raises "attached to a different loop" errors, so tests never touch ``core.database.engine``
 directly. Arrange state through the API where possible, or through the helpers here.
 
+Exception: the seed tests (``test_seed.py``) drive ``core.seed`` (async) with a fresh
+asyncpg engine created per test, so each test's event loop owns its own pool.
+
 IMPORTANT: ``DATABASE_URL`` is rewritten *before* any ``core`` import, because settings are
 cached at import time in several modules.
 """

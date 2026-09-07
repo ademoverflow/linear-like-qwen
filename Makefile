@@ -165,6 +165,14 @@ db-shell: ## Open a psql shell to the database
 	$(COMPOSE) exec $(DB_CONTAINER) psql -U admin -d db
 
 # ==============================================================================
+## Seeding
+# ==============================================================================
+
+.PHONY: seed
+seed: ## Seed the dev database with a realistic demo Workspace
+	$(COMPOSE) exec $(CORE_CONTAINER) bash -c 'uv run python -m core.seed'
+
+# ==============================================================================
 ## Testing
 # ==============================================================================
 
