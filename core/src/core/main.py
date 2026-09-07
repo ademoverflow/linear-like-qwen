@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from alembic import command
@@ -30,14 +30,14 @@ API_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """Lifespan of the application.
 
     Args:
         app (FastAPI): FastAPI application instance.
 
     Returns:
-        AsyncIterator: Async context manager for lifespan.
+        AsyncGenerator: Async context manager for lifespan.
 
     """
     config = Config("core/src/core/alembic/alembic.ini")
