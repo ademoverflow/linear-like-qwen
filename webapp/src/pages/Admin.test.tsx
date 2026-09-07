@@ -67,7 +67,7 @@ const pendingInvitation = {
 	id: "66666666-6666-4666-8666-666666666666",
 	email: "invitee@example.com",
 	invited_by: meFixture.id,
-	expires_at: new Date("2026-08-30T12:00:00.000Z"),
+	expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 	accepted_at: null,
 	created_at: new Date(ISO),
 };
