@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "@/api/auth";
 
+vi.stubEnv("VITE_API_URL", "http://api.test");
+
 vi.mock("@/api/auth", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@/api/auth")>();
 	return {
