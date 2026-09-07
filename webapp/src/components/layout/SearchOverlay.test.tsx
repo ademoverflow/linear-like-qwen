@@ -95,6 +95,8 @@ describe("SearchOverlay", () => {
 		fireEvent.keyDown(window, { key: "/" });
 		const input = screen.getByPlaceholderText(/Search Issues/);
 		expect(input).toBeTruthy();
+		// Typed text must follow the theme (token, not browser default).
+		expect(input.className).toContain("text-foreground");
 		await waitFor(() => expect(document.activeElement).toBe(input));
 	});
 

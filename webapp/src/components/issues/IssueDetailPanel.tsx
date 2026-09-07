@@ -385,7 +385,7 @@ function InlineTitle({
 					setEditing(false);
 					if (draft.trim() !== value) onSave(draft);
 				}}
-				className="w-full rounded-md border border-neutral-300 bg-surface px-2 py-1 text-lg font-semibold focus:border-accent dark:border-neutral-700"
+				className="w-full rounded-md border border-neutral-300 bg-surface px-2 py-1 text-lg font-semibold text-foreground focus:border-accent dark:border-neutral-700"
 			/>
 		);
 	}

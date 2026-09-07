@@ -154,6 +154,17 @@ describe("IssueDetail", () => {
 		).toBeTruthy();
 	});
 
+	it("the comment composer textarea uses the theme foreground token", async () => {
+		mockCommon();
+		renderAt("/teams/ENG/issues/44444444-4444-4444-8444-444444444444");
+		await screen.findByText("ENG-1");
+		// The MarkdownEditor textarea (description, comments) must carry the
+		// token: its ancestors set no text colour, so typed text would
+		// otherwise fall back to browser black in dark mode.
+		const textarea = await screen.findByLabelText("Write a comment");
+		expect(textarea.className).toContain("text-foreground");
+	});
+
 	it("saves an inline title edit with the last-seen updated_at", async () => {
 		mockCommon();
 		vi.mocked(updateIssue).mockResolvedValue({
@@ -166,6 +177,8 @@ describe("IssueDetail", () => {
 		});
 		fireEvent.click(titleButton);
 		const input = screen.getByLabelText("Edit title");
+		// Typed text must follow the theme (token, not browser default).
+		expect(input.className).toContain("text-foreground");
 		fireEvent.change(input, { target: { value: "New title" } });
 		fireEvent.keyDown(input, { key: "Enter" });
 		await waitFor(() =>

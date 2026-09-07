@@ -150,7 +150,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 						onKeyDown={onKeyDown}
 						aria-label="Search Issues"
 						placeholder="Search Issues by identifier or title ( / )"
-						className="h-11 w-full bg-transparent text-sm placeholder:text-faint"
+						className="h-11 w-full bg-transparent text-sm text-foreground placeholder:text-faint"
 					/>
 					<button
 						type="button"

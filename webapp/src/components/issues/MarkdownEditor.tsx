@@ -61,7 +61,7 @@ export function MarkdownEditor({
 					maxLength={maxLength}
 					placeholder={placeholder}
 					onChange={(event) => setDraft(event.target.value)}
-					className="w-full rounded-md border border-neutral-300 bg-surface p-2 text-sm focus:border-accent dark:border-neutral-700"
+					className="w-full rounded-md border border-neutral-300 bg-surface p-2 text-sm text-foreground focus:border-accent dark:border-neutral-700"
 				/>
 			) : (
 				<div className="rounded-md border border-line p-3">
